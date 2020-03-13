@@ -62,14 +62,15 @@ def test_one_hot_returns_a_one_hot_encoding(x):
 
 def test_categorical_sample_samples_with_the_correct_probabilities():
     probs = np.array([0.0, 1.0, 0.0])
-    for _ in range(10):
+    for _ in range(3):
         sample = useful.categorical_sample(probs)
         assert sample.item() == 1
 
 
-def test_categorical_samples_vectorized_probabilities():
-    probs = np.array([[1.0, 0.0], [0.0, 1.0]])
-    for _ in range(10):
+@hypothesis.given(labels_and_vector_size())
+def test_categorical_samples_vectorized_probabilities(x):
+    labels, vector_size = x
+    probs = useful.encode_one_hot(labels, vector_size)
+    for _ in range(3):
         sample = useful.categorical_sample(probs)
-        assert sample[0] == 0
-        assert sample[1] == 1
+        assert (sample == labels).all()

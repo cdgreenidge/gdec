@@ -57,6 +57,6 @@ def categorical_sample(probs: np.ndarray) -> np.ndarray:
         sample, in `{0, ..., m - 1}`.
 
     """
-    assert (probs.sum(axis=-1) == 1).all()
-    unifs = np.expand_dims(np.random.random(probs.shape[:-1]), 0)
+    assert np.allclose(probs.sum(axis=-1), 1)
+    unifs = np.expand_dims(np.random.random(probs.shape[:-1]), -1)
     return np.argmax(unifs <= np.cumsum(probs, axis=-1), axis=-1)
