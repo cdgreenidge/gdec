@@ -6,7 +6,7 @@ import sklearn.utils
 import sklearn.utils.validation
 
 
-class PID(sklearn.naive_bayes._BaseDiscreteNB):
+class PoissonIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
     """Poisson independent decoder.
 
     This is just a Naive Bayes classifier with a Poisson likelihood for the features.
@@ -40,7 +40,7 @@ class PID(sklearn.naive_bayes._BaseDiscreteNB):
 
         return joint_log_likelihood.T
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "PID":
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "PoissonIndependentDecoder":
         """Fit Poisson Naive Bayes according to X, y.
 
         Args:
