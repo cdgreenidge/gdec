@@ -9,6 +9,8 @@ dependencies:
   - pip
 
   # Package dependencies
+  - jax
+  - jaxlib
   - numpy
   - pytorch
   - scipy
