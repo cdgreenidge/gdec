@@ -2,13 +2,13 @@
 from typing import Tuple
 
 import numpy as np
-from scipy import stats
+from scipy import special, stats
 
 from gdec import npgp, useful
 
 
 def generate_dataset(
-    amplitude=1.0, lengthscale=0.1, n_classes=32, n_data=1024, n_features=32, seed=1434
+    amplitude=1.0, lengthscale=0.1, n_classes=32, n_data=1024, n_features=32, seed=1614
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Generate a synthetic dataset for testing decoders.
 
@@ -20,20 +20,26 @@ def generate_dataset(
         n_classes: The number of classes in the dataset.
         n_data: The number of examples in the datset.
         n_features: The number of features/neurons in the dataset.
-        seed: The random seed. The default, 1434, is chosen to generate a dataset with
+        seed: The random seed. The default, is chosen to generate a dataset with
             a low discrepancy between the number of examples in the least common class
             and the number of examples in the most common class.
 
     Returns:
         A tuple (X, y) of examples, of shape (n_data, n_features) and labels, of shape
-        (n_data, ). The labels are integers in {0, ..., n_classes - 1}.
+        (n_data, ). The features are integers representing synthesized spike counts.
+        The labels are integers in {0, ..., n_classes - 1}.
 
     """
     np.random.seed(seed)
-    x_mean = np.zeros((n_features,))
-    x_cov = stats.invwishart(df=n_features, scale=0.1 * np.eye(n_features)).rvs()
-    x_dist = stats.multivariate_normal(mean=x_mean, cov=x_cov)
-    X = x_dist.rvs(n_data)
+    f_mean = np.zeros((n_features,))
+    f_cov = stats.invwishart(df=n_features, scale=0.1 * np.eye(n_features)).rvs()
+    F = stats.multivariate_normal(mean=f_mean, cov=f_cov).rvs(n_data)
+
+    def link(x: np.ndarray) -> np.ndarray:
+        """Link function for likelihood."""
+        return 5 * special.expit(x) + 1
+
+    X = stats.poisson.rvs(link(F))
 
     def spectrum(w: np.ndarray) -> np.ndarray:
         """GP power spectrum, evaluated elementwise."""
