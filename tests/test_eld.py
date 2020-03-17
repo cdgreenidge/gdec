@@ -15,12 +15,23 @@ def test_circdist_gives_correct_distances():
     assert np.array_equal(actual, expected)
 
 
-def test_you_can_train_the_eld_on_the_synthetic_dataset():
+def test_you_can_train_the_eld_on_the_synthetic_dataset_using_squared_circdist():
     X, y = synthetic.generate_dataset(seed=1686, n_classes=32)
     X_train, X_test, y_train, y_test = model_selection.train_test_split(
         X, y, train_size=0.8
     )
     model = gdec.EmpiricalLinearDecoder()
-    model.fit(X_train, y_train)
+    model.fit(X_train, y_train, criterion="squared_circdist")
+    score = model.score(X_test, y_test)
+    assert score > 1 / 32  # Better than random guessing?
+
+
+def test_you_can_train_the_eld_on_the_synthetic_dataset_using_cross_entropy():
+    X, y = synthetic.generate_dataset(seed=1686, n_classes=32)
+    X_train, X_test, y_train, y_test = model_selection.train_test_split(
+        X, y, train_size=0.8
+    )
+    model = gdec.EmpiricalLinearDecoder()
+    model.fit(X_train, y_train, criterion="cross_entropy")
     score = model.score(X_test, y_test)
     assert score > 1 / 32  # Better than random guessing?

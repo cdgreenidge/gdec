@@ -132,13 +132,15 @@ def eld_transform(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]
 class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixin):
     """Empirical linear decoder."""
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
+    def fit(self, X: np.ndarray, y: np.ndarray, criterion="squared_circdist") -> None:
         """Fit the empirical linear decoder.
 
         Args:
             X: An array of shape ``(n_samples, n_features)`` containing the training
                 examples.
             y: An array of shape ``(n_samples, )`` containing the training labels.
+            criterion: A string, one of "squared_circdist" or "cross_entropy", denoting
+                the criterion minimized to choose the hyperparameters.
 
         """
         sklearn.utils.validation.check_X_y(X, y)
@@ -150,10 +152,22 @@ class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.Classifier
 
         self.W_, self.b_ = eld_transform(X_scaled, y)
 
-        def loss(alpha: np.ndarray) -> np.ndarray:
+        def cross_entropy(alpha: np.ndarray) -> np.ndarray:
             """Cross-entropy loss function for fitting alpha hyperparams."""
             log_probs = self._log_probs(X_scaled, alpha)
             return -jnp.take_along_axis(log_probs, y[:, None], axis=1).sum()
+
+        def squared_circdist(alpha: np.ndarray) -> np.ndarray:
+            """Squared circular distance loss function for fitting alpha hyperparams."""
+            predictions = jnp.argmax(self._log_probs(X_scaled, alpha), axis=1)
+            return (circdist(predictions, y, self.classes_.size) ** 2).sum()
+
+        if criterion == "cross_entropy":
+            loss = cross_entropy
+        elif criterion == "squared_circdist":
+            loss = squared_circdist
+        else:
+            raise ValueError(f"Unknown criterion {criterion}")
 
         grad_loss = jax.jit(jax.grad(loss))
         hess_loss = jax.jit(jax.hessian(loss))
