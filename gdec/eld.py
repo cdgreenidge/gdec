@@ -18,6 +18,25 @@ import sklearn.svm
 import sklearn.utils.validation
 
 
+def circdist(x: jnp.ndarray, y: jnp.ndarray, circumference: float) -> jnp.ndarray:
+    """Calculate the signed circular distance between two arrays.
+
+    Returns positive numbers if y is clockwise compared to x, negative if y is counter-
+    clockwise compared to x.
+
+    Args:
+        x: The first array.
+        y: The second array.
+        circumference: The circumference of the circle.
+
+    Returns:
+        An array of the same shape as x and y, containing the signed circular distances.
+
+    """
+    assert y.shape == x.shape
+    return -jnp.mod(x - y - circumference / 2, circumference) + circumference / 2
+
+
 def logsoftmax(x: np.ndarray, axis: int = -1) -> np.ndarray:
     """Apply log softmax to an array of logits, log-normalizing along an axis.
 
