@@ -11,7 +11,7 @@ import numpy as np
 from scipy import special
 
 
-def log_softmax(a: np.ndarray, axis: Optional[int] = None,) -> np.ndarray:
+def log_softmax(a: np.ndarray, axis: Optional[int] = None) -> np.ndarray:
     """Compute the log softmax of an array.
 
     Args:
