@@ -60,3 +60,22 @@ def categorical_sample(probs: np.ndarray) -> np.ndarray:
     assert np.allclose(probs.sum(axis=-1), 1)
     unifs = np.expand_dims(np.random.random(probs.shape[:-1]), -1)
     return np.argmax(unifs <= np.cumsum(probs, axis=-1), axis=-1)
+
+
+def circdist(x: np.ndarray, y: np.ndarray, circumference: float) -> np.ndarray:
+    """Calculate the signed circular distance between two arrays.
+
+    Returns positive numbers if y is clockwise compared to x, negative if y is counter-
+    clockwise compared to x.
+
+    Args:
+        x: The first array.
+        y: The second array.
+        circumference: The circumference of the circle.
+
+    Returns:
+        An array of the same shape as x and y, containing the signed circular distances.
+
+    """
+    assert y.shape == x.shape
+    return -np.mod(x - y - circumference / 2, circumference) + circumference / 2

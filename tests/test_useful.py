@@ -74,3 +74,12 @@ def test_categorical_samples_vectorized_probabilities(x):
     for _ in range(3):
         sample = useful.categorical_sample(probs)
         assert (sample == labels).all()
+
+
+def test_circdist_gives_correct_distances():
+    c = 12
+    x = 8 * np.ones((12,))
+    y = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+    actual = useful.circdist(x, y, c)
+    expected = [4, 5, 6, -5, -4, -3, -2, -1, 0, 1, 2, 3]
+    assert np.array_equal(actual, expected)
