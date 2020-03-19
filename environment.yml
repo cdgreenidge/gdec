@@ -3,6 +3,7 @@ name: gdec
 channels:
   - pytorch
   - conda-forge
+  - gpytorch
 
 dependencies:
   - conda-build
@@ -13,6 +14,7 @@ dependencies:
   - jaxlib
   - numpy
   - pytorch
+  - gpytorch
   - scipy
   - scikit-learn
 

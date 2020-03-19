@@ -159,7 +159,7 @@ class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.Classifier
 
         def squared_circdist(alpha: np.ndarray) -> np.ndarray:
             """Squared circular distance loss function for fitting alpha hyperparams."""
-            predictions = jnp.argmax(self._log_probs(X_scaled, alpha), axis=1)
+            predictions = jnp.exp(self._log_probs(X_scaled, alpha)) @ self.classes_
             return (circdist(predictions, y, self.classes_.size) ** 2).sum()
 
         if criterion == "cross_entropy":
@@ -174,8 +174,9 @@ class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.Classifier
 
         alpha_0 = jnp.ones(self.W_.shape[0])
         opt_results = scipy.optimize.minimize(
-            loss, alpha_0, method="Newton-CG", jac=grad_loss, hess=hess_loss
+            loss, alpha_0, method="trust-ncg", jac=grad_loss, hess=hess_loss
         )
+        assert opt_results.success, opt_results.message
         self.alpha_ = opt_results.x
 
     def _log_probs(self, X: np.ndarray, alpha: np.ndarray) -> np.ndarray:
