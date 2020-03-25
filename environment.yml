@@ -10,8 +10,6 @@ dependencies:
   - pip
 
   # Package dependencies
-  - jax
-  - jaxlib
   - numpy
   - pytorch
   - gpytorch
@@ -36,4 +34,6 @@ dependencies:
   - pytest
 
   - pip:
+    - jax
+    - jaxlib
     - flake8-bugbear
