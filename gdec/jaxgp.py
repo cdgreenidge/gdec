@@ -37,7 +37,6 @@ def fourier_basis(n_domain: int, n_funs: int) -> Tuple[np.ndarray, np.ndarray]:
         array containing the spectral covariances, of shape `(n_funs, )`.
 
     """
-    assert n_funs % 2 != 0
     freqs = np.arange(1, (n_funs // 2) + 1)
 
     basis_x = (2 * math.pi / n_domain) * np.outer(np.arange(n_domain), freqs)
