@@ -39,7 +39,7 @@ def test_you_can_train_periodic_gp_regression_on_the_synthetic_dataset(dataset):
     model.fit(X, y)
     f_est = model.predict(z)
     error = np.max(np.abs(f - f_est))
-    assert error < 0.25
+    assert error < 0.3
 
 
 def test_training_pid_on_float_dataset_raises_value_error(dataset):

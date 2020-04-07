@@ -37,7 +37,7 @@ def neg_log_evidence(
     """
     sigma2 = np.exp(theta[0]) ** 2
     amplitude = np.exp(theta[1])
-    lengthscale = 0.95 * special.expit(theta[2]) + 0.025
+    lengthscale = 0.8 * special.expit(theta[2]) + 0.1
     spectrum = jaxgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
     whitened_basis = np.sqrt(spectrum)[None, :] * basis
     phi = whitened_basis[x]
@@ -131,7 +131,7 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         basis, spectrum_freqs = jaxgp.fourier_basis(self.grid_size_, self.n_funs)
 
         # Fit hyperparameters
-        unconstrained_lengthscale = special.logit(np.array((0.1 - 0.025) / 0.95)).item()
+        unconstrained_lengthscale = special.logit(np.array((0.1 - 0.1) / 0.8)).item()
         theta_0 = np.array(
             [
                 math.log(self.noise_initial),
