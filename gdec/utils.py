@@ -10,7 +10,7 @@ from gdec import useful
 logger = logging.getLogger(__name__)
 
 
-def mean_abs_error(
+def mean_abs_err(
     y_pred: np.ndarray,
     y_true: np.ndarray,
     y_pred_c: float,

@@ -1,11 +1,11 @@
 """Gaussian-process regularized Gaussian independent decoder."""
-from typing import List, Tuple
 import logging
+from typing import List, Tuple
 
 import numpy as np
 import sklearn.naive_bayes
-from scipy import stats
 import tqdm
+from scipy import stats
 
 from gdec import gpreg
 
@@ -103,9 +103,7 @@ class GPGaussianIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
         for i, y_i in enumerate(self.classes_):
             self.class_count_[i] = np.sum(y == y_i)
 
-        out = tuning_curve_matrix(
-            X, y, verbose
-        )
+        out = tuning_curve_matrix(X, y, verbose)
         self.lambda_, self.amplitude_, self.lengthscale_, self.noise_ = out
 
         self.class_prior_ = self.class_count_ / self.class_count_.sum()

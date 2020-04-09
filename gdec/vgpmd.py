@@ -204,7 +204,7 @@ def fit_tuning_curve_matrix(
             y_pred_probs = model(X_test)[0]
         y_pred = torch.argmax(y_pred_probs, dim=1).cpu().numpy()
         y_true = y_test.cpu().numpy()
-        return utils.mean_abs_error(y_pred, y_true, n_classes)
+        return utils.mean_abs_err(y_pred, y_true, n_classes)
 
     epochs_without_improvement = 0
     best_val_loss = float("inf")
