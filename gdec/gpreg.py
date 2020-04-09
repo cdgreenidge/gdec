@@ -1,10 +1,12 @@
 """1D Gaussian Process regression, accelerated with Fourier methods."""
 import math
+import warnings
 
 import jax
 import jax.numpy as np
 import numpy as onp
 import sklearn.base
+from jax import config
 from jax.scipy import linalg, special
 from scipy import optimize
 from sklearn.utils import validation
@@ -95,6 +97,14 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
     def __init__(
         self, noise_initial=1.0, amplitude_initial=1.0, lengthscale_initial=0.2
     ):
+        if config.values["jax_enable_x64"] == 0:
+            warnings.warn(
+                (
+                    "PeriodicGPRegression: "
+                    "JAX running in 32 bit mode, NaN/Inf errors likely"
+                ),
+                UserWarning,
+            )
         self.noise_initial = noise_initial
         self.amplitude_initial = amplitude_initial
         self.lengthscale_initial = lengthscale_initial
@@ -131,24 +141,40 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         basis, spectrum_freqs = jaxgp.fourier_basis(self.grid_size_, self.n_funs)
 
         # Fit hyperparameters
-        unconstrained_lengthscale = special.logit(
-            np.array((self.lengthscale_initial - 0.1) / 0.8)
-        ).item()
-        theta_0 = np.array(
-            [
-                math.log(self.noise_initial),
-                math.log(self.amplitude_initial),
-                unconstrained_lengthscale,
-            ]
-        )
-        args = (x, y, basis, spectrum_freqs)
-        results = optimize.minimize(
-            lambda theta: onp.asarray(self.loss(theta, *args)),
-            theta_0,
-            method="trust-exact",
-            jac=lambda theta: onp.asarray(self.loss_grad(theta, *args)),
-            hess=lambda theta: onp.asarray(self.loss_hess(theta, *args)),
-        )
+        def minimize_loss(
+            noise_initial, amplitude_initial, lengthscale_initial
+        ) -> optimize.OptimizeResult:
+            unconstrained_lengthscale = special.logit(
+                np.array((lengthscale_initial) / 0.8)
+            ).item()
+            theta_0 = np.array(
+                [
+                    math.log(noise_initial),
+                    math.log(amplitude_initial),
+                    unconstrained_lengthscale,
+                ]
+            )
+            args = (x, y, basis, spectrum_freqs)
+            return optimize.minimize(
+                lambda theta: onp.asarray(self.loss(theta, *args)),
+                theta_0,
+                method="trust-exact",
+                jac=lambda theta: onp.asarray(self.loss_grad(theta, *args)),
+                hess=lambda theta: onp.asarray(self.loss_hess(theta, *args)),
+            )
+
+        try:
+            results = minimize_loss(
+                self.noise_initial, self.amplitude_initial, self.lengthscale_initial
+            )
+        # If we get a NaN/Inf value error, it's likely because there's not a lot of
+        # data, and it is best fit with a large lengthscale. So we try that.
+        except ValueError as e:
+            if str(e) == "array must not contain infs or NaNs":
+                results = minimize_loss(self.noise_initial, self.amplitude_initial, 0.7)
+            else:
+                raise e
+
         theta_est = results.x
         self.noise_ = np.exp(theta_est[0])
         self.amplitude_ = np.exp(theta_est[1])
