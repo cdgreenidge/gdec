@@ -1,3 +1,4 @@
+.autoenv*
 .vscode
 notebooks/
 
