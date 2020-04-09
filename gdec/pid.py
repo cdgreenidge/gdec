@@ -57,8 +57,6 @@ class PoissonIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
 
         """
         X, y = sklearn.utils.check_X_y(X, y)
-        if X.dtype.kind not in ("i", "u"):
-            raise ValueError("X must be an array with int/unit dtype.")
 
         self.classes_ = np.sort(np.unique(y))
         n_features = X.shape[1]
