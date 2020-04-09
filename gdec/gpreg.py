@@ -75,7 +75,7 @@ def map_estimate(
     """
     phi = whitened_basis[x]
     w = linalg.solve(  # Estimated spectral-domain weights
-        phi.T @ phi + (noise ** 2) * np.eye(phi.shape[1]), phi.T @ y, sym_pos=True,
+        phi.T @ phi + (noise ** 2) * np.eye(phi.shape[1]), phi.T @ y, sym_pos=True
     )
     return whitened_basis @ w  # Estimated latent function values
 
@@ -93,7 +93,7 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
     """
 
     def __init__(
-        self, noise_initial=0.25, amplitude_initial=1.0, lengthscale_initial=0.25,
+        self, noise_initial=1.0, amplitude_initial=1.0, lengthscale_initial=0.2
     ):
         self.noise_initial = noise_initial
         self.amplitude_initial = amplitude_initial
@@ -131,7 +131,9 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         basis, spectrum_freqs = jaxgp.fourier_basis(self.grid_size_, self.n_funs)
 
         # Fit hyperparameters
-        unconstrained_lengthscale = special.logit(np.array((0.1 - 0.1) / 0.8)).item()
+        unconstrained_lengthscale = special.logit(
+            np.array((self.lengthscale_initial - 0.1) / 0.8)
+        ).item()
         theta_0 = np.array(
             [
                 math.log(self.noise_initial),
@@ -150,7 +152,7 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         theta_est = results.x
         self.noise_ = np.exp(theta_est[0])
         self.amplitude_ = np.exp(theta_est[1])
-        self.lengthscale_ = 0.95 * special.expit(theta_est[2]) + 0.025
+        self.lengthscale_ = 0.8 * special.expit(theta_est[2]) + 0.1
 
         # Fit latent function with MAP estimate
         spectrum = jaxgp.rbf_spectrum(
