@@ -19,6 +19,7 @@ dependencies:
   # Executable dependencies
   - ipykernel
   - matplotlib
+  - pandas
 
   # Development dependencies
   - black
