@@ -202,7 +202,5 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
 
         """
         X = validation.check_array(X, accept_sparse=True)
-        if X.dtype.kind not in ("i", "u"):
-            raise ValueError("X must be an array with int/unit dtype.")
         validation.check_is_fitted(self, "is_fitted_")
         return onp.asarray(self.f_[np.squeeze(X)])
