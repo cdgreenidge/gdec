@@ -72,7 +72,7 @@ class GPGaussianIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
             mean = self.lambda_[i]
             log_prior = np.log(self.class_prior_[i])
             joint_log_likelihood[i, :] = (
-                stats.poisson.logpmf(X, mean).sum(axis=1) + log_prior
+                stats.norm.logpdf(X, mean, self.noise_).sum(axis=1) + log_prior
             )
 
         return joint_log_likelihood.T
