@@ -17,6 +17,7 @@ dependencies:
   - scikit-learn
 
   # Executable dependencies
+  - altair
   - ipykernel
   - matplotlib
   - pandas
