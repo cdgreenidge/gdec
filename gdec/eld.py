@@ -6,6 +6,7 @@ Neuroscience 14 (2): 239–45.
 
 """
 from typing import List, Tuple
+import warnings
 
 import jax.numpy as jnp
 import jax.scipy.special
@@ -132,7 +133,7 @@ def eld_transform(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]
 class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixin):
     """Empirical linear decoder."""
 
-    def fit(self, X: np.ndarray, y: np.ndarray, criterion="squared_circdist") -> None:
+    def fit(self, X: np.ndarray, y: np.ndarray, criterion="cross_entropy") -> None:
         """Fit the empirical linear decoder.
 
         Args:
@@ -176,7 +177,8 @@ class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.Classifier
         opt_results = scipy.optimize.minimize(
             loss, alpha_0, method="trust-ncg", jac=grad_loss, hess=hess_loss
         )
-        assert opt_results.success, opt_results.message
+        if not opt_results.success:
+            warnings.warn(opt_results.message, UserWarning)
         self.alpha_ = opt_results.x
 
     def _log_probs(self, X: np.ndarray, alpha: np.ndarray) -> np.ndarray:
