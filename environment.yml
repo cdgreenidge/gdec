@@ -4,6 +4,7 @@ channels:
   - pytorch
   - conda-forge
   - gpytorch
+  - plotly
 
 dependencies:
   - conda-build
@@ -19,8 +20,10 @@ dependencies:
   # Executable dependencies
   - altair
   - ipykernel
+  - ipywidgets
   - matplotlib
   - pandas
+  - plotly
 
   # Development dependencies
   - black
