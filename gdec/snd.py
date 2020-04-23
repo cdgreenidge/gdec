@@ -39,8 +39,8 @@ class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixi
     """Super neuron decoder.
 
     Attributes:
-        W_: When fitted, the weight matrix, of shape ``(n_classes, n_features)``.
-        b_: When fitted, the intercept vector, of shape ``(n_classes, )``.
+        coefs_: When fitted, the weight matrix, of shape ``(n_classes, n_features)``.
+        intercept_: When fitted, the intercept vector, of shape ``(n_classes, )``.
     """
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> None:
@@ -54,13 +54,13 @@ class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixi
         """
         linreg = linear_model.LinearRegression()
         linreg.fit(X, to_linear_targets(y))
-        self.W_ = linreg.coef_
-        self.b_ = linreg.intercept_
+        self.coefs_ = linreg.coef_
+        self.intercept_ = linreg.intercept_
 
     def _predict_log_probs(self, X: np.ndarray) -> np.ndarray:
         sklearn.utils.validation.check_is_fitted(self)
         X = sklearn.utils.validation.check_array(X)
-        scores = X @ self.W_.T + self.b_[None, :]
+        scores = X @ self.coefs_.T + self.intercept_[None, :]
         return useful.log_softmax(scores, axis=-1)
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:

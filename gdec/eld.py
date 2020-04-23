@@ -5,8 +5,8 @@ See Graf, Arnulf B. A., Adam Kohn, Mehrdad Jazayeri, and J. Anthony Movshon. 201
 Neuroscience 14 (2): 239–45.
 
 """
-from typing import List, Tuple
 import warnings
+from typing import List, Tuple
 
 import jax.numpy as jnp
 import jax.scipy.special
@@ -151,7 +151,7 @@ class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.Classifier
         self.scaler_.fit(X)
         X_scaled = self.scaler_.transform(X)
 
-        self.W_, self.b_ = eld_transform(X_scaled, y)
+        self.coefs_, self.b_ = eld_transform(X_scaled, y)
 
         def cross_entropy(alpha: np.ndarray) -> np.ndarray:
             """Cross-entropy loss function for fitting alpha hyperparams."""
@@ -173,7 +173,7 @@ class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.Classifier
         grad_loss = jax.jit(jax.grad(loss))
         hess_loss = jax.jit(jax.hessian(loss))
 
-        alpha_0 = jnp.ones(self.W_.shape[0])
+        alpha_0 = jnp.ones(self.coefs_.shape[0])
         opt_results = scipy.optimize.minimize(
             loss, alpha_0, method="trust-ncg", jac=grad_loss, hess=hess_loss
         )
@@ -199,7 +199,7 @@ class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.Classifier
         n = alpha.shape[0]
         L = jnp.tril(np.ones((n, n)))
         A = jnp.diag(alpha)
-        likelihoods = (L @ A @ (self.W_ @ X.T + self.b_[:, None])).T
+        likelihoods = (L @ A @ (self.coefs_ @ X.T + self.b_[:, None])).T
         return logsoftmax(likelihoods)
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:

@@ -12,7 +12,7 @@ class PoissonIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
     This is just a Naive Bayes classifier with a Poisson likelihood for the features.
 
     Attributes:
-        W_: When fitted, the weight matrix, of shape ``(n_classes, n_features)``.
+        coefs_: When fitted, the weight matrix, of shape ``(n_classes, n_features)``.
 
     """
 
@@ -32,7 +32,7 @@ class PoissonIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
 
         joint_log_likelihood = np.zeros((len(self.classes_), X.shape[0]))
         for i in range(len(self.classes_)):
-            mean = self.W_[i]
+            mean = self.coefs_[i]
             log_prior = np.log(self.class_prior_[i])
             joint_log_likelihood[i, :] = (
                 scipy.stats.poisson.logpmf(X, mean).sum(axis=1) + log_prior
@@ -61,13 +61,13 @@ class PoissonIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
         self.classes_ = np.sort(np.unique(y))
         n_features = X.shape[1]
         n_classes = len(self.classes_)
-        self.W_ = np.zeros((n_classes, n_features))  # Firing means
+        self.coefs_ = np.zeros((n_classes, n_features))  # Firing means
         self.class_count_ = np.zeros(n_classes)
 
         for i, y_i in enumerate(self.classes_):
             i = self.classes_.searchsorted(y_i)
             X_i = X[y == y_i, :]
-            self.W_[i, :] = np.mean(X_i, axis=0)
+            self.coefs_[i, :] = np.mean(X_i, axis=0)
             self.class_count_[i] = X_i.shape[0]
 
         self.class_prior_ = self.class_count_ / self.class_count_.sum()

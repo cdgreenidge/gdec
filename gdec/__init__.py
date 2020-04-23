@@ -1,5 +1,6 @@
 """Linear decoders for angled grating stimuli."""
 from jax.config import config
+
 from gdec.eld import EmpiricalLinearDecoder
 from gdec.gpgid import GPGaussianIndependentDecoder
 from gdec.gppid import GPPoissonIndependentDecoder

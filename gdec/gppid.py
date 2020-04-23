@@ -226,7 +226,7 @@ class GPPoissonIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
 
         joint_log_likelihood = np.zeros((len(self.classes_), X.shape[0]))
         for i in range(len(self.classes_)):
-            mean = self.lambda_[i]
+            mean = self.coefs_[i]
             log_prior = np.log(self.class_prior_[i])
             joint_log_likelihood[i, :] = (
                 stats.poisson.logpmf(X, mean).sum(axis=1) + log_prior
@@ -258,7 +258,7 @@ class GPPoissonIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
         for i, y_i in enumerate(self.classes_):
             self.class_count_[i] = np.sum(y == y_i)
 
-        self.lambda_, self.amplitude_, self.lengthscale_ = tuning_curve_matrix(
+        self.coefs_, self.amplitudes_, self.lengthscales_ = tuning_curve_matrix(
             X, y, verbose
         )
 

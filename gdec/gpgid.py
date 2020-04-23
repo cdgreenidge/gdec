@@ -69,10 +69,10 @@ class GPGaussianIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
 
         joint_log_likelihood = np.zeros((len(self.classes_), X.shape[0]))
         for i in range(len(self.classes_)):
-            mean = self.lambda_[i]
+            mean = self.coefs_[i]
             log_prior = np.log(self.class_prior_[i])
             joint_log_likelihood[i, :] = (
-                stats.norm.logpdf(X, mean, self.noise_).sum(axis=1) + log_prior
+                stats.norm.logpdf(X, mean, self.noises_).sum(axis=1) + log_prior
             )
 
         return joint_log_likelihood.T
@@ -102,7 +102,7 @@ class GPGaussianIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
             self.class_count_[i] = np.sum(y == y_i)
 
         out = tuning_curve_matrix(X, y, verbose)
-        self.lambda_, self.amplitude_, self.lengthscale_, self.noise_ = out
+        self.coefs_, self.amplitudes_, self.lengthscales_, self.noises_ = out
 
         self.class_prior_ = self.class_count_ / self.class_count_.sum()
         return self

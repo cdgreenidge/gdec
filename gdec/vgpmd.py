@@ -232,10 +232,10 @@ def fit_tuning_curve_matrix(
             break
 
     with torch.no_grad():
-        coefs = best_model.coefs()
-        weights = best_model.basis @ coefs  # type: ignore
+        freq_coefs = best_model.coefs()
+        coefs = best_model.basis @ freq_coefs  # type: ignore
 
-    return coefs.cpu(), weights.cpu()
+    return freq_coefs.cpu(), coefs.cpu()
 
 
 class VariationalGaussianProcessMulticlassDecoder(
@@ -260,7 +260,8 @@ class VariationalGaussianProcessMulticlassDecoder(
         self.classes_ = sklearn.utils.multiclass.unique_labels(y)
         self.X_ = X.astype(np.float32)
         self.y_ = y
-        self.coefs_, self.lambda_ = fit_tuning_curve_matrix(
+        # t suffix stands for torch
+        self.freq_coefs_t_, self.coefs_t_ = fit_tuning_curve_matrix(
             self.X_,
             self.y_,
             lr,
@@ -274,25 +275,30 @@ class VariationalGaussianProcessMulticlassDecoder(
 
         return self
 
+    def coefs_(self) -> np.ndarray:
+        """Return the model coefficients, of size (k, d)."""
+        sklearn.utils.validation.check_is_fitted(self)
+        return self.coefs_t_.numpy()
+
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Predict classes."""
         sklearn.utils.validation.check_is_fitted(self)
         X = sklearn.utils.validation.check_array(X)
         X = torch.tensor(X, dtype=torch.float32)
-        log_probs = F.log_softmax(X @ self.lambda_.t(), dim=-1)
+        log_probs = F.log_softmax(X @ self.coefs_t_.t(), dim=-1)
         classes = torch.argmax(log_probs, dim=-1)
         return classes.numpy()
 
     def resample(self, n_classes: int) -> "VariationalGaussianProcessMulticlassDecoder":
         """Resample model to a different number of classes."""
-        n_funs = self.coefs_.shape[0]
+        n_funs = self.freq_coefs_t_.shape[0]
         basis = torchgp.make_basis(n_classes, n_funs)[0]
-        new_lambda = basis @ self.coefs_
+        new_coefs_t_ = basis @ self.freq_coefs_t_
 
         model = VariationalGaussianProcessMulticlassDecoder()
         model.classes_ = np.arange(n_classes)
         model.X_ = self.X_
         model.y_ = self.y_
-        model.lambda_ = new_lambda
-        model.coefs_ = self.coefs_
+        model.coefs_t_ = new_coefs_t_
+        model.freq_coefs_t_ = self.freq_coefs_t_
         return model
