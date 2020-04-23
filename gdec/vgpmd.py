@@ -284,6 +284,7 @@ class VariationalGaussianProcessMulticlassDecoder(
 
         return self
 
+    @property
     def coefs_(self) -> np.ndarray:
         """Return the model coefficients, of size (k, d)."""
         sklearn.utils.validation.check_is_fitted(self)
