@@ -169,7 +169,7 @@ def fit_tuning_curve_matrix(
     patience: int = 32,
     cuda: bool = True,
     cuda_device: int = 0,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     if torch.cuda.is_available() and cuda:
         device = torch.device("cuda", cuda_device)
     else:
@@ -234,8 +234,10 @@ def fit_tuning_curve_matrix(
     with torch.no_grad():
         freq_coefs = best_model.coefs()
         coefs = best_model.basis @ freq_coefs  # type: ignore
+        amplitudes = best_model.amplitudes()
+        lengthscales = best_model.lengthscales()
 
-    return freq_coefs.cpu(), coefs.cpu()
+    return freq_coefs.cpu(), coefs.cpu(), amplitudes.cpu(), lengthscales.cpu()
 
 
 class VariationalGaussianProcessMulticlassDecoder(
@@ -261,7 +263,12 @@ class VariationalGaussianProcessMulticlassDecoder(
         self.X_ = X.astype(np.float32)
         self.y_ = y
         # t suffix stands for torch
-        self.freq_coefs_t_, self.coefs_t_ = fit_tuning_curve_matrix(
+        (
+            self.freq_coefs_t_,
+            self.coefs_t_,
+            amplitudes,
+            lengthscales,
+        ) = fit_tuning_curve_matrix(
             self.X_,
             self.y_,
             lr,
@@ -272,6 +279,8 @@ class VariationalGaussianProcessMulticlassDecoder(
             cuda,
             cuda_device,
         )
+        self.amplitudes_ = amplitudes.numpy()
+        self.lengthscales_ = lengthscales.numpy()
 
         return self
 
