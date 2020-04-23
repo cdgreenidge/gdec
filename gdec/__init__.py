@@ -2,6 +2,7 @@
 from jax.config import config
 
 from gdec.eld import EmpiricalLinearDecoder
+from gdec.gid import GaussianIndependentDecoder
 from gdec.glmnet import LogisticRegression
 from gdec.gpgid import GPGaussianIndependentDecoder
 from gdec.gppid import GPPoissonIndependentDecoder
@@ -13,6 +14,7 @@ config.update("jax_enable_x64", True)
 
 __all__ = [
     "EmpiricalLinearDecoder",
+    "GaussianIndependentDecoder",
     "GPGaussianIndependentDecoder",
     "GPPoissonIndependentDecoder",
     "LogisticRegression",
