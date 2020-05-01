@@ -66,7 +66,7 @@ def rbf_spectrum(
     """
     return (
         amplitude ** 2
-        * np.sqrt(2 * math.pi * lengthscale ** 2)
+        * lengthscale * np.sqrt(2 * math.pi)
         * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
     )
 

@@ -14,6 +14,22 @@ from sklearn.utils import validation
 from gdec import jaxgp
 
 
+def theta_pushforward(theta_unconstrained: np.ndarray) -> np.ndarray:
+    """Push unconstrained hyperparameters forward to constrained values."""
+    noise = np.exp(theta_unconstrained[0])
+    amplitude = np.exp(theta_unconstrained[1])
+    lengthscale = 0.005 + 0.99 * special.expit(theta_unconstrained[2])
+    return np.array([noise, amplitude, lengthscale])
+
+
+def theta_pullback(theta_constrained: np.ndarray) -> np.ndarray:
+    """Pull back constrained hyperparams to unconstrained values."""
+    noise = np.log(theta_constrained[0])
+    amplitude = np.log(theta_constrained[1])
+    lengthscale = special.logit((theta_constrained[2] - 0.005) / 0.99)
+    return np.array([noise, amplitude, lengthscale])
+
+
 def neg_log_evidence(
     theta: np.ndarray,
     x: np.ndarray,
@@ -37,9 +53,8 @@ def neg_log_evidence(
         A scalar, the negative log evidence.
 
     """
-    sigma2 = np.exp(theta[0]) ** 2
-    amplitude = np.exp(theta[1])
-    lengthscale = 0.8 * special.expit(theta[2]) + 0.1
+    noise, amplitude, lengthscale = theta_pushforward(theta)
+    sigma2 = noise ** 2
     spectrum = jaxgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
     whitened_basis = np.sqrt(spectrum)[None, :] * basis
     phi = whitened_basis[x]
@@ -144,15 +159,14 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         def minimize_loss(
             noise_initial, amplitude_initial, lengthscale_initial
         ) -> optimize.OptimizeResult:
-            unconstrained_lengthscale = special.logit(
-                np.array((lengthscale_initial) / 0.8)
-            ).item()
-            theta_0 = np.array(
-                [
-                    math.log(noise_initial),
-                    math.log(amplitude_initial),
-                    unconstrained_lengthscale,
-                ]
+            theta_0 = theta_pullback(
+                np.array(
+                    [
+                        self.noise_initial,
+                        self.amplitude_initial,
+                        self.lengthscale_initial,
+                    ]
+                )
             )
             args = (x, y, basis, spectrum_freqs)
             return optimize.minimize(
@@ -176,9 +190,7 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
                 raise e
 
         theta_est = results.x
-        self.noise_ = np.exp(theta_est[0])
-        self.amplitude_ = np.exp(theta_est[1])
-        self.lengthscale_ = 0.8 * special.expit(theta_est[2]) + 0.1
+        self.noise_, self.amplitude_, self.lengthscale_ = theta_pushforward(theta_est)
 
         # Fit latent function with MAP estimate
         spectrum = jaxgp.rbf_spectrum(
