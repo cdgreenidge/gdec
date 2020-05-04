@@ -18,7 +18,7 @@ def theta_pushforward(theta_unconstrained: np.ndarray) -> np.ndarray:
     """Push unconstrained hyperparameters forward to constrained values."""
     noise = np.exp(theta_unconstrained[0])
     amplitude = np.exp(theta_unconstrained[1])
-    lengthscale = 0.005 + 0.99 * special.expit(theta_unconstrained[2])
+    lengthscale = 0.001 + 0.998 * special.expit(theta_unconstrained[2])
     return np.array([noise, amplitude, lengthscale])
 
 
@@ -26,7 +26,7 @@ def theta_pullback(theta_constrained: np.ndarray) -> np.ndarray:
     """Pull back constrained hyperparams to unconstrained values."""
     noise = np.log(theta_constrained[0])
     amplitude = np.log(theta_constrained[1])
-    lengthscale = special.logit((theta_constrained[2] - 0.005) / 0.99)
+    lengthscale = special.logit((theta_constrained[2] - 0.001) / 0.998)
     return np.array([noise, amplitude, lengthscale])
 
 

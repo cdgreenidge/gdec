@@ -91,8 +91,8 @@ def fit_latent(
 
 def lengthscale_transform(x: np.ndarray) -> np.ndarray:
     """Transform the real line to the interval [0.01, 0.9]."""
-    lengthscale_min = 0.01
-    lengthscale_max = 0.9
+    lengthscale_min = 0.001
+    lengthscale_max = 0.999
     return (lengthscale_max - lengthscale_min) * (
         0.5 * np.tanh(x) + 0.5
     ) + lengthscale_min
@@ -100,8 +100,8 @@ def lengthscale_transform(x: np.ndarray) -> np.ndarray:
 
 def inv_lengthscale_transform(x: np.ndarray) -> np.ndarray:
     """Transform the interval [0.01, 0.9] to the real line."""
-    lengthscale_min = 0.01
-    lengthscale_max = 0.9
+    lengthscale_min = 0.001
+    lengthscale_max = 0.999
     neg_1_to_1 = 2 * (
         ((x - lengthscale_min) / (lengthscale_max - lengthscale_min)) - 0.5
     )
