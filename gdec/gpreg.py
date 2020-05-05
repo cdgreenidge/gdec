@@ -18,7 +18,7 @@ def theta_pushforward(theta_unconstrained: np.ndarray) -> np.ndarray:
     """Push unconstrained hyperparameters forward to constrained values."""
     noise = np.exp(theta_unconstrained[0])
     amplitude = np.exp(theta_unconstrained[1])
-    lengthscale = 0.001 + 0.998 * special.expit(theta_unconstrained[2])
+    lengthscale = 0.001 + 0.95 * special.expit(theta_unconstrained[2])
     return np.array([noise, amplitude, lengthscale])
 
 
@@ -155,6 +155,43 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         # triggers JAX recompilation on every evaulation, leading to slow refits
         basis, spectrum_freqs = jaxgp.fourier_basis(self.grid_size_, self.n_funs)
 
+        # Do an initial grid search to find a good initialization
+        hyperparams = []
+        losses = []
+        for _ in range(128):
+            noise_lower = 0.5
+            noise_upper = 1.0
+            noise = (noise_upper - noise_lower) * onp.random.rand() + noise_lower
+
+            amplitude_lower = 32.0
+            amplitude_upper = 128
+            amplitude = (
+                amplitude_upper - amplitude_lower
+            ) * onp.random.rand() + amplitude_lower
+
+            lengthscale_lower = 0.001
+            log_lengthscale_lower = math.log(lengthscale_lower)
+            lengthscale_upper = 0.1
+            log_lengthscale_upper = math.log(lengthscale_upper)
+            log_lengthscale = (
+                log_lengthscale_upper - log_lengthscale_lower
+            ) * onp.random.rand() + log_lengthscale_lower
+            lengthscale = math.exp(log_lengthscale)
+
+            theta_0 = theta_pullback(
+                np.array(
+                    [
+                        noise,
+                        amplitude,
+                        lengthscale,
+                    ]
+                )
+            )
+            hyperparams.append(theta_0)
+            losses.append(self.loss(theta_0, x, y, basis, spectrum_freqs))
+
+        theta_0 = hyperparams[onp.argmin(losses)]
+
         # Fit hyperparameters
         def minimize_loss(
             noise_initial, amplitude_initial, lengthscale_initial
@@ -172,23 +209,14 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
             return optimize.minimize(
                 lambda theta: onp.asarray(self.loss(theta, *args)),
                 theta_0,
-                method="trust-exact",
+                method="trust-ncg",
                 jac=lambda theta: onp.asarray(self.loss_grad(theta, *args)),
                 hess=lambda theta: onp.asarray(self.loss_hess(theta, *args)),
             )
 
-        try:
-            results = minimize_loss(
-                self.noise_initial, self.amplitude_initial, self.lengthscale_initial
-            )
-        # If we get a NaN/Inf value error, it's likely because there's not a lot of
-        # data, and it is best fit with a large lengthscale. So we try that.
-        except ValueError as e:
-            if str(e) == "array must not contain infs or NaNs":
-                results = minimize_loss(self.noise_initial, self.amplitude_initial, 0.7)
-            else:
-                raise e
-
+        results = minimize_loss(
+            self.noise_initial, self.amplitude_initial, self.lengthscale_initial
+        )
         theta_est = results.x
         self.noise_, self.amplitude_, self.lengthscale_ = theta_pushforward(theta_est)
 

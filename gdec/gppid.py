@@ -132,8 +132,8 @@ def neg_log_laplace_evidence(
 def fit_hyperparams(
     x: np.ndarray,
     y: np.ndarray,
-    initial_amplitude: float = 3.0,
-    initial_lengthscale: float = 0.2,
+    initial_amplitude: float = 10.0,
+    initial_lengthscale: float = 0.01,
 ) -> Tuple[float, float]:
     """Estimate optimal hyperparameters using the Laplace approximation.
 
