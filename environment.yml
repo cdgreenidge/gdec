@@ -9,6 +9,7 @@ channels:
 dependencies:
   - conda-build
   - pip
+  - python=3.6.8
 
   # Package dependencies
   - numpy
@@ -39,6 +40,6 @@ dependencies:
   - pytest
 
   - pip:
-    - jax
-    - jaxlib
+      # - jax
+      # - jaxlib
     - flake8-bugbear

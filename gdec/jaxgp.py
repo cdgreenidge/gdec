@@ -9,17 +9,22 @@ logger = logging.getLogger(__name__)
 
 
 def choose_n_basis_funs(
-    spectrum_fn: Callable[[np.ndarray], np.ndarray], threshold: float = 1.0e-3
+    spectrum_fn: Callable[[np.ndarray], np.ndarray], maxval: int, threshold: float = 1e3
 ) -> int:
     """Chooses the appropriate number of basis functions.
 
     Args:
         spectrum_fn: A function that evaluates the power spectrum.
-        threshold: The minimum covariance value.
+        threshold: The condition number.
 
     """
-    n_periodic = 0
-    while (spectrum_fn(np.array([n_periodic])) > threshold).any():
+
+    def condition_num(n_periodic):
+        tmp = spectrum_fn(np.array([1.0, n_periodic]))
+        return tmp[0] / tmp[1]
+
+    n_periodic = 1
+    while (condition_num(n_periodic) < threshold).any() and n_periodic < maxval:
         n_periodic += 1
     return 1 + 2 * n_periodic  # DC, n_periodic cosines, n_periodic sines
 
@@ -66,7 +71,8 @@ def rbf_spectrum(
     """
     return (
         amplitude ** 2
-        * lengthscale * np.sqrt(2 * math.pi)
+        * lengthscale
+        * np.sqrt(2 * math.pi)
         * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
     )
 

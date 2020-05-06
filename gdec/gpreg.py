@@ -10,6 +10,7 @@ from jax import config
 from jax.scipy import linalg, special
 from scipy import optimize
 from sklearn.utils import validation
+from torch import quasirandom
 
 from gdec import jaxgp
 
@@ -18,16 +19,16 @@ def theta_pushforward(theta_unconstrained: np.ndarray) -> np.ndarray:
     """Push unconstrained hyperparameters forward to constrained values."""
     noise = np.exp(theta_unconstrained[0])
     amplitude = np.exp(theta_unconstrained[1])
-    lengthscale = 0.001 + 0.95 * special.expit(theta_unconstrained[2])
+    lengthscale = 0.001 + 0.998 * special.expit(theta_unconstrained[2])
     return np.array([noise, amplitude, lengthscale])
 
 
 def theta_pullback(theta_constrained: np.ndarray) -> np.ndarray:
-    """Pull back constrained hyperparams to unconstrained values."""
+    """Pull back batches constrained hyperparams to unconstrained values."""
     noise = np.log(theta_constrained[0])
     amplitude = np.log(theta_constrained[1])
     lengthscale = special.logit((theta_constrained[2] - 0.001) / 0.998)
-    return np.array([noise, amplitude, lengthscale])
+    return np.stack((noise, amplitude, lengthscale), axis=0)
 
 
 def neg_log_evidence(
@@ -55,7 +56,8 @@ def neg_log_evidence(
     """
     noise, amplitude, lengthscale = theta_pushforward(theta)
     sigma2 = noise ** 2
-    spectrum = jaxgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
+    raw_spectrum = jaxgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
+    spectrum = np.where(raw_spectrum, 0, raw_spectrum > 1.0e-32)
     whitened_basis = np.sqrt(spectrum)[None, :] * basis
     phi = whitened_basis[x]
     beta = 1 / sigma2
@@ -110,7 +112,11 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
     """
 
     def __init__(
-        self, noise_initial=1.0, amplitude_initial=1.0, lengthscale_initial=0.2
+        self,
+        n_classes,
+        noise_initial=1.0,
+        amplitude_initial=1.0,
+        lengthscale_initial=0.5,
     ):
         if config.values["jax_enable_x64"] == 0:
             warnings.warn(
@@ -123,12 +129,10 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         self.noise_initial = noise_initial
         self.amplitude_initial = amplitude_initial
         self.lengthscale_initial = lengthscale_initial
-        self.n_funs = jaxgp.choose_n_basis_funs(
-            lambda w: jaxgp.rbf_spectrum(
-                w, self.amplitude_initial, self.lengthscale_initial
-            )
-        )
         self.loss = jax.jit(neg_log_evidence, static_argnums=(3, 4))
+        self.vloss = jax.jit(
+            jax.vmap(self.loss, in_axes=(0, None, None, None, None), out_axes=0)
+        )
         self.loss_grad = jax.jit(jax.grad(self.loss))
         self.loss_hess = jax.jit(jax.hessian(self.loss))
 
@@ -153,62 +157,47 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
 
         # It's cleaner to use the whitened_fourier_basis in the loss function but that
         # triggers JAX recompilation on every evaulation, leading to slow refits
-        basis, spectrum_freqs = jaxgp.fourier_basis(self.grid_size_, self.n_funs)
+        basis, spectrum_freqs = jaxgp.fourier_basis(self.grid_size_, self.grid_size_)
 
         # Do an initial grid search to find a good initialization
-        hyperparams = []
-        losses = []
-        for _ in range(128):
-            noise_lower = 0.5
-            noise_upper = 1.0
-            noise = (noise_upper - noise_lower) * onp.random.rand() + noise_lower
+        sobol = quasirandom.SobolEngine(dimension=3, scramble=True, seed=43)
+        draws = sobol.draw(1024).numpy()
 
-            amplitude_lower = 32.0
-            amplitude_upper = 128
-            amplitude = (
-                amplitude_upper - amplitude_lower
-            ) * onp.random.rand() + amplitude_lower
+        noise_lower = 0.5
+        noise_upper = 1.0
+        noises = (noise_upper - noise_lower) * draws[:, 0] + noise_lower
 
-            lengthscale_lower = 0.001
-            log_lengthscale_lower = math.log(lengthscale_lower)
-            lengthscale_upper = 0.1
-            log_lengthscale_upper = math.log(lengthscale_upper)
-            log_lengthscale = (
-                log_lengthscale_upper - log_lengthscale_lower
-            ) * onp.random.rand() + log_lengthscale_lower
-            lengthscale = math.exp(log_lengthscale)
+        amplitude_lower = 1.0
+        amplitude_upper = np.max(np.abs(y))
+        if amplitude_upper < amplitude_lower:
+            amplitude_upper = 2.0
+        amplitudes = (amplitude_upper - amplitude_lower) * draws[:, 1] + amplitude_lower
 
-            theta_0 = theta_pullback(
-                np.array(
-                    [
-                        noise,
-                        amplitude,
-                        lengthscale,
-                    ]
-                )
-            )
-            hyperparams.append(theta_0)
-            losses.append(self.loss(theta_0, x, y, basis, spectrum_freqs))
+        lengthscale_lower = 0.001
+        log_lengthscale_lower = math.log(lengthscale_lower)
+        lengthscale_upper = 0.95
+        log_lengthscale_upper = math.log(lengthscale_upper)
+        log_lengthscales = (log_lengthscale_upper - log_lengthscale_lower) * draws[
+            :, 2
+        ] + log_lengthscale_lower
+        lengthscales = np.exp(log_lengthscales)
 
-        theta_0 = hyperparams[onp.argmin(losses)]
+        theta_0s = theta_pullback(
+            np.stack((noises, amplitudes, lengthscales), axis=0)
+        ).T
+
+        losses = self.vloss(theta_0s, x, y, basis, spectrum_freqs)
+
+        self.theta_0_ = theta_0s[onp.argmin(losses)]
 
         # Fit hyperparameters
         def minimize_loss(
             noise_initial, amplitude_initial, lengthscale_initial
         ) -> optimize.OptimizeResult:
-            theta_0 = theta_pullback(
-                np.array(
-                    [
-                        self.noise_initial,
-                        self.amplitude_initial,
-                        self.lengthscale_initial,
-                    ]
-                )
-            )
             args = (x, y, basis, spectrum_freqs)
             return optimize.minimize(
                 lambda theta: onp.asarray(self.loss(theta, *args)),
-                theta_0,
+                self.theta_0_,
                 method="trust-ncg",
                 jac=lambda theta: onp.asarray(self.loss_grad(theta, *args)),
                 hess=lambda theta: onp.asarray(self.loss_hess(theta, *args)),
