@@ -163,11 +163,11 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         sobol = quasirandom.SobolEngine(dimension=3, scramble=True, seed=43)
         draws = sobol.draw(1024).numpy()
 
-        noise_lower = 0.5
-        noise_upper = 1.0
+        noise_lower = 0.1 * np.std(y)
+        noise_upper = 0.5 * np.std(y)
         noises = (noise_upper - noise_lower) * draws[:, 0] + noise_lower
 
-        amplitude_lower = 1.0
+        amplitude_lower = 0.1
         amplitude_upper = np.max(np.abs(y))
         if amplitude_upper < amplitude_lower:
             amplitude_upper = 2.0
