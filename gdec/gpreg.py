@@ -8,7 +8,7 @@ from scipy import linalg, optimize
 from sklearn.utils import validation
 from torch import quasirandom
 
-from gdec import jaxgp
+from gdec import npgp
 
 
 def sufficient_statistics(
@@ -426,10 +426,12 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         if x.dtype.kind not in ("i", "u"):
             raise ValueError("X must be an array with int/unit dtype.")
         self.grid_size_ = np.unique(x).size if grid_size is None else grid_size
+        if self.grid_size_ % 2 == 0:
+            self.grid_size_ += 1
 
         # It's cleaner to use the whitened_fourier_basis in the loss function but that
         # triggers JAX recompilation on every evaulation, leading to slow refits
-        basis, spectrum_freqs = jaxgp.fourier_basis(self.grid_size_, self.grid_size_)
+        basis, spectrum_freqs = npgp.fourier_basis(self.grid_size_, self.grid_size_)
         sstats = sufficient_statistics(x, y, basis)
 
         # Do an initial grid search to find a good initialization
