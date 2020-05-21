@@ -5,7 +5,7 @@ import jax.numpy as np
 import pytest
 from jax import random
 
-from gdec import gpreg, jaxgp
+from gdec import gpreg, npgp
 
 
 @pytest.fixture(scope="module")
@@ -15,10 +15,10 @@ def dataset() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     sigma = 0.5
 
     def spectrum_fn(w: np.ndarray) -> np.ndarray:
-        return jaxgp.rbf_spectrum(w, amplitude, lengthscale)
+        return npgp.rbf_spectrum(w, amplitude, lengthscale)
 
-    n_funs = jaxgp.choose_n_basis_funs(spectrum_fn, 24)
-    basis = jaxgp.whitened_fourier_basis(spectrum_fn, 128, n_funs)
+    n_funs = npgp.choose_n_basis_funs(spectrum_fn, 24)
+    basis = npgp.whitened_fourier_basis(spectrum_fn, 128, n_funs)
     z = np.arange(128)
 
     key = random.PRNGKey(47)
@@ -35,7 +35,7 @@ def dataset() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
 def test_you_can_train_periodic_gp_regression_on_the_synthetic_dataset(dataset):
     X, y, z, f = dataset
-    model = gpreg.PeriodicGPRegression()
+    model = gpreg.PeriodicGPRegression(n_classes=np.unique(X).size)
     model.fit(X, y)
     f_est = model.predict(z)
     error = np.max(np.abs(f - f_est))
@@ -45,6 +45,6 @@ def test_you_can_train_periodic_gp_regression_on_the_synthetic_dataset(dataset):
 def test_training_pid_on_float_dataset_raises_value_error(dataset):
     X, y, _, _ = dataset
     X = X.astype(np.float32)
-    model = gpreg.PeriodicGPRegression()
+    model = gpreg.PeriodicGPRegression(n_classes=np.unique(X).size)
     with pytest.raises(ValueError):
         model.fit(X, y)

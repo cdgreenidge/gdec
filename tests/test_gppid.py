@@ -12,7 +12,7 @@ from gdec import synthetic
 @pytest.fixture(scope="module")
 def dataset() -> Tuple[np.ndarray, np.ndarray]:
     return synthetic.generate_dataset(
-        seed=1634, examples_per_class=8, n_classes=32, n_features=2
+        seed=1634, examples_per_class=8, n_classes=32, n_features=8
     )
 
 
