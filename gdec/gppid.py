@@ -71,13 +71,23 @@ def fit_latent(
     """
     n_classes = np.unique(x).size
 
-    def spectrum_fn(w: np.ndarray) -> np.ndarray:
-        return npgp.rbf_spectrum(w, amplitude, lengthscale)
+    if n_classes % 2 == 0:
+        n_funs = n_classes + 1
+    else:
+        n_funs = n_classes
 
-    n_funs = npgp.choose_n_basis_funs(spectrum_fn, threshold=0.01)
-    basis = npgp.whitened_fourier_basis(spectrum_fn, n_classes, n_funs)
+    basis, spectrum_freqs = npgp.fourier_basis(n_classes, n_funs)
+    spectrum = npgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
+    condition_thresh = 1e8
+    spectrum_thresh = np.max(np.abs(spectrum)) / condition_thresh
+    (mask,) = np.nonzero(np.abs(spectrum) > spectrum_thresh)
+    n_funs = mask.size
+
+    spectrum_freqs = spectrum_freqs[mask]
+    spectrum = spectrum[mask]
+    basis = basis[:, mask]
+
     initial_coefs = np.zeros((n_funs,))
-
     results = optimize.minimize(
         loss,
         initial_coefs,
