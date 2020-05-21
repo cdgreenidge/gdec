@@ -17,7 +17,7 @@ def dataset() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     def spectrum_fn(w: np.ndarray) -> np.ndarray:
         return jaxgp.rbf_spectrum(w, amplitude, lengthscale)
 
-    n_funs = jaxgp.choose_n_basis_funs(spectrum_fn)
+    n_funs = jaxgp.choose_n_basis_funs(spectrum_fn, 24)
     basis = jaxgp.whitened_fourier_basis(spectrum_fn, 128, n_funs)
     z = np.arange(128)
 
