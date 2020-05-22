@@ -50,7 +50,7 @@ class VGPMDModule(nn.Module):
             lambda w: torchgp.matern_5_2_spectrum(
                 w, self.amplitudes(), self.lengthscales()
             ),
-            threshold=1.0e-6,
+            threshold=1.0e-13,
         )
         self.register_buffer("n_coef", torch.tensor(n_coef))
 
