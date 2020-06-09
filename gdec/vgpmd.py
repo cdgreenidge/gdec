@@ -42,25 +42,17 @@ class VGPMDModule(nn.Module):
             torch.full((n_dim,), math.log(7.0)), requires_grad=True
         )
         self.unconstrained_lengthscales = nn.Parameter(
-            torch.full((n_dim,), interval_to_real(0.1, low=0.01, high=0.9)),
+            torch.full((n_dim,), interval_to_real(1, low=0.01, high=n_classes)),
             requires_grad=True,
         )
 
-        n_coef = torchgp.choose_n_basis_funs(
-            lambda w: torchgp.matern_5_2_spectrum(
-                w, self.amplitudes(), self.lengthscales()
-            ),
-            threshold=1.0e-13,
-        )
-        self.register_buffer("n_coef", torch.tensor(n_coef))
-
         # Variational posterior parameters, for torchgp-domain weights
-        self.q_mean = nn.Parameter(torch.zeros((n_coef, n_dim)), requires_grad=True)
+        self.q_mean = nn.Parameter(torch.zeros((n_classes, n_dim)), requires_grad=True)
         self.log_q_scale = nn.Parameter(
-            torch.full((n_coef, n_dim), math.log(1.0e-5)), requires_grad=True
+            torch.full((n_classes, n_dim), math.log(1.0e-5)), requires_grad=True
         )
 
-        basis, freqs = torchgp.make_basis(n_classes, n_coef)
+        basis, freqs = torchgp.real_fourier_basis(n_classes)
         self.register_buffer("basis", basis)
         self.register_buffer("freqs", freqs)
 
@@ -70,7 +62,11 @@ class VGPMDModule(nn.Module):
 
     def lengthscales(self) -> torch.Tensor:
         """Return the constrained lengthscales."""
-        return real_to_interval(self.unconstrained_lengthscales, low=0.01, high=0.9)
+        return real_to_interval(
+            self.unconstrained_lengthscales,
+            low=0.01,
+            high=float(self.n_classes.item()),  # type: ignore
+        )
 
     def kl_penalty(self) -> torch.Tensor:
         """Compute the KL divergence prior penalty, used for constructing the ELBO."""
@@ -85,7 +81,7 @@ class VGPMDModule(nn.Module):
 
     def coefs(self) -> torch.Tensor:
         """Return a MAP estimate of the unwhitened coefficients."""
-        spectrum = torchgp.matern_5_2_spectrum(
+        spectrum = torchgp.rbf_spectrum(
             self.freqs, self.amplitudes(), self.lengthscales()  # type: ignore
         ).t()
         return torch.sqrt(spectrum) * self.q_mean
@@ -111,7 +107,7 @@ class VGPMDModule(nn.Module):
         """
         assert X.size()[1] == self.n_dim
         q = dist.Normal(self.q_mean, torch.exp(self.log_q_scale))
-        spectrum = torchgp.matern_5_2_spectrum(
+        spectrum = torchgp.rbf_spectrum(
             self.freqs, self.amplitudes(), self.lengthscales()  # type: ignore
         ).t()
         if self.training:  # type: ignore
@@ -301,8 +297,7 @@ class VariationalGaussianProcessMulticlassDecoder(
 
     def resample(self, n_classes: int) -> "VariationalGaussianProcessMulticlassDecoder":
         """Resample model to a different number of classes."""
-        n_funs = self.freq_coefs_t_.shape[0]
-        basis = torchgp.make_basis(n_classes, n_funs)[0]
+        basis = torchgp.real_fourier_basis(n_classes)[0]
         new_coefs_t_ = basis @ self.freq_coefs_t_
 
         model = VariationalGaussianProcessMulticlassDecoder()

@@ -1,55 +1,57 @@
 """Gaussian process utilities for Torch code."""
 import math
-from typing import Callable, Tuple
+from typing import Tuple
 
 import torch
 
 
-def choose_n_basis_funs(
-    spectrum_fn: Callable[[torch.Tensor], torch.Tensor], threshold: float = 1.0e-3
-) -> int:
-    """Chooses the appropriate number of basis functions.
-
-    Args:
-        spectrum_fn: A function that evaluates the power spectrum.
-        threshold: The minimum covariance value.
-
-    """
-    n_periodic = 0
-    while (spectrum_fn(torch.tensor(n_periodic)) > threshold).any():
-        n_periodic += 1
-    return 1 + 2 * n_periodic  # DC, n_periodic cosines, n_periodic sines
-
-
-def make_basis(n_domain: int, n_funs: int) -> Tuple[torch.Tensor, torch.Tensor]:
+def real_fourier_basis(n: int) -> Tuple[torch.Tensor, torch.Tensor]:
     """Make a Fourier basis.
 
     Args:
-        n_domain: The number of points in the domain of each basis function (i.e. the
-            array size in the "IFFT".)
-        n_funs: The number of basis functions. Must be odd.
+        n: The basis size
 
     Returns:
         An array of shape `(n_domain, n_funs)` containing the basis functions, and an
         array containing the spectral covariances, of shape `(n_funs, )`.
 
     """
-    assert n_funs % 2 != 0
-    freqs = torch.arange(1, (n_funs // 2) + 1, dtype=torch.float)
+    assert n > 1
+    dc = torch.ones((n,))
+    dc_freq = 0
 
-    basis_x = (2 * math.pi / n_domain) * torch.ger(
-        torch.arange(n_domain, dtype=torch.float), freqs
+    cosine_basis_vectors = []
+    cosine_freqs = []
+    sine_basis_vectors = []
+    sine_freqs = []
+
+    ts = torch.arange(n)
+    for w in range(1, 1 + (n - 1) // 2):
+        x = w * (2 * math.pi / n) * ts
+        cosine_basis_vectors.append(math.sqrt(2) * torch.cos(x))
+        cosine_freqs.append(w)
+        sine_basis_vectors.append(-math.sqrt(2) * torch.sin(x))
+        sine_freqs.append(w)
+
+    if n % 2 == 0:
+        w = n // 2
+        x = w * 2 * math.pi * ts / n
+        cosine_basis_vectors.append(torch.cos(x))
+        cosine_freqs.append(w)
+
+    basis = torch.stack((dc, *cosine_basis_vectors, *sine_basis_vectors[::-1]), -1)
+    freqs = torch.cat(
+        (
+            torch.tensor([dc_freq], dtype=torch.float),
+            torch.tensor(cosine_freqs, dtype=torch.float),
+            torch.tensor(sine_freqs[::-1], dtype=torch.float),
+        )
     )
-    cosines = 2 * torch.cos(basis_x)
-    sines = -2 * torch.sin(basis_x)
-    dc = torch.ones((n_domain, 1))
-    basis = torch.cat((dc, cosines, sines), dim=1)
 
-    spectrum_freqs = torch.cat((torch.tensor([0.0]), freqs, freqs))
-    return (basis, spectrum_freqs)
+    return basis / math.sqrt(n), freqs / n
 
 
-def matern_5_2_spectrum(
+def rbf_spectrum(
     w: torch.Tensor, amplitudes: torch.Tensor, lengthscales: torch.Tensor
 ) -> torch.Tensor:
     """Evaluate the Matern 5/2 power spectrum element-wise at ``w``.
@@ -69,6 +71,6 @@ def matern_5_2_spectrum(
     lengthscales = torch.unsqueeze(lengthscales, -1)
     return (
         amplitudes ** 2
-        * (torch.tensor(400 * math.sqrt(5)) / (3 * lengthscales ** 2))
-        * ((torch.tensor(5.0) / lengthscales ** 2) + 4 * math.pi ** 2 * w ** 2) ** (-3)
+        * torch.sqrt(2 * math.pi * lengthscales ** 2)
+        * torch.exp(-2 * math.pi ** 2 * lengthscales ** 2 * w ** 2)
     )
