@@ -1,4 +1,6 @@
 """Test useful.py."""
+import itertools
+
 import hypothesis
 import numpy as np
 from hypothesis import strategies
@@ -83,3 +85,28 @@ def test_circdist_gives_correct_distances():
     actual = useful.circdist(x, y, c)
     expected = [4, 5, 6, -5, -4, -3, -2, -1, 0, 1, 2, 3]
     assert np.array_equal(actual, expected)
+
+
+array_strat_1d = numpy.arrays(
+    float,
+    numpy.array_shapes(min_dims=1, max_dims=1, min_side=1, max_side=8),
+    elements=strategies.floats(
+        min_value=-100, max_value=100, allow_nan=False, allow_infinity=False
+    ),
+)
+
+
+@strategies.composite
+def random_number_of_1d_arrays(draw):
+    n_arrays = draw(strategies.integers(min_value=1, max_value=3))
+    arrays = [draw(array_strat_1d) for _ in range(n_arrays)]
+    return arrays
+
+
+@hypothesis.given(random_number_of_1d_arrays())
+def test_cartesian_product_returns_cartesian_product_of_arrays(x):
+    product = useful.product(*x)
+    product_tuples = list(itertools.product(*x))
+    assert len(product_tuples) == product.shape[0]
+    for row in product:
+        assert tuple(row) in product_tuples

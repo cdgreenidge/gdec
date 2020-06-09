@@ -79,3 +79,18 @@ def circdist(x: np.ndarray, y: np.ndarray, circumference: float) -> np.ndarray:
     """
     assert y.shape == x.shape
     return -np.mod(x - y - circumference / 2, circumference) + circumference / 2
+
+
+def product(*args: np.ndarray) -> np.ndarray:
+    """Computes the cartesian product of input arrays.
+
+    Args:
+        args: The input arrays, of shape `(n, )` (can have different lengths).
+
+    Returns:
+        An array containing the cartesian product of args, with the tuples in the rows.
+    """
+    for i in args:
+        if i.ndim != 1:
+            raise ValueError("Input arrays must be 1D.")
+    return np.stack(np.meshgrid(*args, indexing="ij")).reshape(len(args), -1).T
