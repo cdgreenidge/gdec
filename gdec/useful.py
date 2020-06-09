@@ -49,8 +49,8 @@ def categorical_sample(probs: np.ndarray) -> np.ndarray:
     This is vectorized, and so faster than scipy.stats.multinomial.
 
     Args:
-        probs: A numpy array of shape `(b0, ..., bm, m), containing m class probabilities
-            along the last axis. Can also have a shape of just `(m, )`.
+        probs: A numpy array of shape `(b0, ..., bm, m), containing m class
+            probabilities along the last axis. Can also have a shape of just `(m, )`.
 
     Returns:
         A numpy array of shape `(b0, ..., bm)` containing the class labels for each

@@ -33,7 +33,7 @@ def prune(
     phixphix: np.ndarray,
     phixy: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Prunes the spectrum and its matrices."""
+    """Prunes the spectrum and its associated matrices."""
     condition_thresh = 1e100
     spectrum_thresh = np.max(np.abs(spectrum)) / condition_thresh
     (mask,) = np.nonzero(np.abs(spectrum) > spectrum_thresh)
@@ -89,6 +89,18 @@ def nll(
 def nll_grad(
     theta: np.ndarray, sstats: np.ndarray, spectrum_freqs: np.ndarray
 ) -> np.ndarray:
+    """Compute the gradient of the negative log likelihood.
+
+    Args:
+        theta: An array of shape (3, ) containing the unconstrained hyperparameters
+            (noise, amplitude, and lengthscale)
+        spectrum_freqs: The Fourier frequencies associated with each function in the
+            basis, of shape (n_funs, ).
+
+    Returns:
+        The gradient of theta, of shape (3, ).
+
+    """
     sigma, amplitude, lengthscale = theta
     sigma2 = sigma ** 2
     sigma3 = sigma ** 3
@@ -136,6 +148,21 @@ def nll_grad(
 def nll_hess(
     theta: np.ndarray, sstats: np.ndarray, spectrum_freqs: np.ndarray
 ) -> np.ndarray:
+    """Compute the Hessian of the negative log likelihood.
+
+    This code could probably be condensed significantly but it does produce
+    correct results.
+
+    Args:
+        theta: An array of shape (3, ) containing the unconstrained hyperparameters
+            (noise, amplitude, and lengthscale)
+        spectrum_freqs: The Fourier frequencies associated with each function in the
+            basis, of shape (n_funs, ).
+
+    Returns:
+        The Hessian of theta, of shape (3, 3).
+
+    """
     sigma, amplitude, lengthscale = theta
     spectrum = npgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
     n, phixphix, phixy, yy = sstats

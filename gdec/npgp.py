@@ -1,11 +1,8 @@
 """Gaussian process utilities for Numpy code."""
-import logging
 import math
 from typing import Tuple
 
 import numpy as np
-
-logger = logging.getLogger(__name__)
 
 
 def real_fourier_basis(n: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -52,7 +49,7 @@ def real_fourier_basis(n: int) -> Tuple[np.ndarray, np.ndarray]:
 def rbf_spectrum(
     w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
 ) -> np.ndarray:
-    """Evaluate the Matern 5/2 power spectrum element-wise at ``w``.
+    """Evaluate the RBF spectrum element-wise at ``w``.
 
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
@@ -74,7 +71,7 @@ def rbf_spectrum(
 def rbf_spectrum_dr(
     w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
 ) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. rho.
+    """Evaluate the RBF spectrum derivative w.r.t. amplitude.
 
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
@@ -97,7 +94,7 @@ def rbf_spectrum_dr(
 def rbf_spectrum_dl(
     w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
 ) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. rho.
+    """Evaluate the RBF spectrum derivative w.r.t. lengthscale.
 
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
@@ -120,7 +117,7 @@ def rbf_spectrum_dl(
 def rbf_spectrum_drdr(
     w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
 ) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. rho.
+    """Evaluate the RBF spectrum 2nd derivative w.r.t. amplitude.
 
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
@@ -142,7 +139,7 @@ def rbf_spectrum_drdr(
 def rbf_spectrum_dldl(
     w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
 ) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. rho.
+    """Evaluate the RBF spectrum 2nd derivative w.r.t. lengthscale.
 
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
@@ -169,7 +166,7 @@ def rbf_spectrum_dldl(
 def rbf_spectrum_dldr(
     w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
 ) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. rho.
+    """Evaluate the RBF spectrum derivative w.r.t. amplitude and lengthscale..
 
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of

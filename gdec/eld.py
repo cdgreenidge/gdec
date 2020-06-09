@@ -187,9 +187,9 @@ class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.Classifier
         Args:
             X: An array of shape ``(n_samples, n_features)`` containing the training
                 examples.
-            alpha: The SVM normal vector scales. Normally this should be ``self.alpha_``,
-                but we leave it as an argument so we can differentiate through this
-                function when fitting.
+            alpha: The SVM normal vector scales. Normally this should be
+                ``self.alpha_``, but we leave it as an argument so we can differentiate
+                through this function when fitting.
 
         Returns:
             An array of shape ``(n_samples, n_classes)`` containing the predicted log

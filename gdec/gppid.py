@@ -36,7 +36,19 @@ def loss(
 def loss_grad(
     coefs: np.ndarray, x: np.ndarray, y: np.ndarray, basis: np.ndarray
 ) -> np.ndarray:
-    """Calculate the gradient of the negative log likelihood loss."""
+    """Calculate the gradient of the negative log likelihood loss.
+
+    Args:
+        coefs: The spectral cofficients for the GP, of shape `(d, )`
+        x: The integer-valued x-locations of the data, of shape `(n, )`.
+        y: The spike counts (responses), of shape `(n, )`.
+        basis: The whitened Fourier basis used to represent the latent function.
+
+    Returns:
+        The gradient of the negative log likelihood loss of the coefficients, of shape
+        `(d, )`.
+
+    """
     phi = basis[x]  # Expand basis for each element in input
     t1 = phi.T @ (y - np.exp(phi @ coefs))
     t2 = -coefs
@@ -46,7 +58,19 @@ def loss_grad(
 def loss_hess(
     coefs: np.ndarray, x: np.ndarray, y: np.ndarray, basis: np.ndarray
 ) -> np.ndarray:
-    """Calculate the Hessian of the negative log likelihood loss."""
+    """Calculate the Hessian of the negative log likelihood loss.
+
+    Args:
+        coefs: The spectral cofficients for the GP, of shape `(d, )`
+        x: The integer-valued x-locations of the data, of shape `(n, )`.
+        y: The spike counts (responses), of shape `(n, )`.
+        basis: The whitened Fourier basis used to represent the latent function.
+
+    Returns:
+        The Hessian of the negative log likelihood loss of the coefficients, of shape
+        `(d, d)`.
+
+    """
     phi = basis[x]  # Expand basis for each element in input
     t1 = -np.identity(coefs.size)
     t2 = -(phi.T * np.exp(phi @ coefs)[None, :]) @ phi
@@ -72,13 +96,12 @@ def fit_latent(
     n_classes = np.unique(x).size
     basis, spectrum_freqs = npgp.real_fourier_basis(n_classes)
     spectrum = npgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
+    basis = basis * np.sqrt(spectrum[None, :])  # Whiten the basis
 
     condition_thresh = 1e8
     spectrum_thresh = np.max(np.abs(spectrum)) / condition_thresh
     (mask,) = np.nonzero(np.abs(spectrum) > spectrum_thresh)
     n_funs = mask.size
-    spectrum_freqs = spectrum_freqs[mask]
-    spectrum = spectrum[mask]
     basis = basis[:, mask]
 
     initial_coefs = np.zeros((n_funs,))
