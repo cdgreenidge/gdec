@@ -1,6 +1,6 @@
 """1D Gaussian Process regression, accelerated with Fourier methods."""
 import math
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import sklearn.base
@@ -36,7 +36,7 @@ def prune(
     phixy: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Prunes the spectrum and its matrices."""
-    condition_thresh = 1e8
+    condition_thresh = 1e100
     spectrum_thresh = np.max(np.abs(spectrum)) / condition_thresh
     (mask,) = np.nonzero(np.abs(spectrum) > spectrum_thresh)
     spectrum_freqs = spectrum_freqs[mask]
@@ -363,7 +363,7 @@ def nll_hess(
 
 def map_estimate(
     x: np.ndarray, y: np.ndarray, whitened_basis: np.ndarray, noise: float
-) -> np.ndarray:
+) -> Tuple[np.ndarray, np.ndarray]:
     """Compute a MAP estimate of the posterior.
 
     Args:
@@ -375,14 +375,16 @@ def map_estimate(
 
     Returns:
         The estimated posterior mean for the grid {0, ..., k - 1}, a vector of shape
-        (k, ).
+        (k, ) and the diagonal posterior variance.
 
     """
     phi = whitened_basis[x]
     w = linalg.solve(  # Estimated spectral-domain weights
         phi.T @ phi + (noise ** 2) * np.eye(phi.shape[1]), phi.T @ y, sym_pos=True
     )
-    return whitened_basis @ w  # Estimated latent function values
+    cov = linalg.inv((1 / noise ** 2) * phi.T @ phi + np.eye(phi.shape[1]))  # w domain
+    cov_diag = np.diag(whitened_basis @ cov @ whitened_basis.T)
+    return whitened_basis @ w, cov_diag  # Estimated latent function values
 
 
 class PeriodicGPRegression(sklearn.base.BaseEstimator):
@@ -426,17 +428,15 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         if x.dtype.kind not in ("i", "u"):
             raise ValueError("X must be an array with int/unit dtype.")
         self.grid_size_ = np.unique(x).size if grid_size is None else grid_size
-        if self.grid_size_ % 2 == 0:
-            self.grid_size_ += 1
 
         # It's cleaner to use the whitened_fourier_basis in the loss function but that
         # triggers JAX recompilation on every evaulation, leading to slow refits
-        basis, spectrum_freqs = npgp.fourier_basis(self.grid_size_, self.grid_size_)
-        sstats = sufficient_statistics(x, y, basis)
+        basis, self.spectrum_freqs_ = npgp.real_fourier_basis(self.grid_size_)
+        self.sstats_ = sufficient_statistics(x, y, basis)
 
         # Do an initial grid search to find a good initialization
         sobol = quasirandom.SobolEngine(dimension=3, scramble=True, seed=43)
-        draws = sobol.draw(16).numpy()
+        draws = sobol.draw(512).numpy()
 
         noise_lower = 0.1 * np.std(y)
         noise_upper = 0.5 * np.std(y)
@@ -448,20 +448,23 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
             amplitude_upper = 2.0
         amplitudes = (amplitude_upper - amplitude_lower) * draws[:, 1] + amplitude_lower
 
-        lengthscale_lower = 0.001
+        lengthscale_lower = 0.5
+        lengthscale_upper = self.grid_size_ - self.grid_size_ // 8
         log_lengthscale_lower = math.log(lengthscale_lower)
-        lengthscale_upper = 0.95
         log_lengthscale_upper = math.log(lengthscale_upper)
         log_lengthscales = (log_lengthscale_upper - log_lengthscale_lower) * draws[
             :, 2
         ] + log_lengthscale_lower
         lengthscales = np.exp(log_lengthscales)
+        # lengthscales = (lengthscale_upper - lengthscale_lower) * draws[
+        #     :, 2
+        # ] + lengthscale_lower
 
         theta_0s = np.stack((noises, amplitudes, lengthscales), axis=0).T
 
         losses = []
         for i in theta_0s:
-            losses.append(nll(i, sstats, spectrum_freqs))
+            losses.append(nll(i, self.sstats_, self.spectrum_freqs_))
 
         self.theta_0_ = theta_0s[np.argmin(losses)]
 
@@ -469,13 +472,14 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         def minimize_loss(
             noise_initial, amplitude_initial, lengthscale_initial
         ) -> optimize.OptimizeResult:
-            args = (sstats, spectrum_freqs)
+            args = (self.sstats_, self.spectrum_freqs_)
             return optimize.minimize(
                 lambda theta: nll(theta, *args),
                 self.theta_0_,
                 method="trust-exact",
                 jac=lambda theta: nll_grad(theta, *args),
                 hess=lambda theta: nll_hess(theta, *args),
+                options={"gtol": 1.0e-34},
             )
 
         results = minimize_loss(
@@ -485,9 +489,11 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         self.lengthscale_ = np.abs(self.lengthscale_)
 
         # Fit latent function with MAP estimate
-        spectrum = rbf_spectrum(spectrum_freqs, self.amplitude_, self.lengthscale_)
+        spectrum = rbf_spectrum(
+            self.spectrum_freqs_, self.amplitude_, self.lengthscale_
+        )
         whitened_basis = np.sqrt(spectrum)[None, :] * basis
-        self.f_ = map_estimate(x, y, whitened_basis, self.noise_)
+        self.f_, self.f_var_ = map_estimate(x, y, whitened_basis, self.noise_)
 
         self.is_fitted_ = True
         return self
@@ -506,3 +512,17 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         X = validation.check_array(X, accept_sparse=True)
         validation.check_is_fitted(self, "is_fitted_")
         return self.f_[np.squeeze(X)]
+
+    def nll(self, hyperparams: Optional[np.ndarray] = None) -> float:
+        """Evaluate the negative log likelihood.
+
+        Args:
+            hyperparams: An array of shape (3, ) containing the noise standard
+            deviation, the amplitude standard deviation, and the lengthscale. If
+            None, the trained hyperparameters are used.
+
+        """
+        validation.check_is_fitted(self, "is_fitted_")
+        if hyperparams is None:
+            hyperparams = np.array([self.noise_, self.amplitude_, self.lengthscale_])
+        return nll(hyperparams, self.sstats_, self.spectrum_freqs_)
