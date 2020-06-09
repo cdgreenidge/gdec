@@ -1,35 +1,33 @@
 """Test gpreg.py."""
 from typing import Tuple
 
-import jax.numpy as np
+import numpy as np
 import pytest
-from jax import random
 
 from gdec import gpreg, npgp
 
 
 @pytest.fixture(scope="module")
 def dataset() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    np.random.seed(42)
     amplitude = 1.0
-    lengthscale = 0.2
+    lengthscale = 12
     sigma = 0.5
+    n = 128
 
     def spectrum_fn(w: np.ndarray) -> np.ndarray:
         return npgp.rbf_spectrum(w, amplitude, lengthscale)
 
-    n_funs = npgp.choose_n_basis_funs(spectrum_fn, 24)
-    basis = npgp.whitened_fourier_basis(spectrum_fn, 128, n_funs)
-    z = np.arange(128)
+    basis, freqs = npgp.real_fourier_basis(n)
+    coef_vars = npgp.rbf_spectrum(freqs, amplitude, lengthscale)
+    z = np.arange(n)
 
-    key = random.PRNGKey(47)
-    key, subkey = random.split(key)
-    w = random.normal(subkey, shape=(n_funs,))
+    w = np.sqrt(coef_vars) * np.random.randn(n)
     f = basis @ w
 
     x = z.repeat(1)
     f_x = f.repeat(1)
-    key, subkey = random.split(key)
-    y = sigma * random.normal(subkey, shape=x.shape) + f_x
+    y = sigma * np.random.randn(*f_x.shape) + f_x
     return x[:, None], y, z[:, None], f
 
 
@@ -39,7 +37,7 @@ def test_you_can_train_periodic_gp_regression_on_the_synthetic_dataset(dataset):
     model.fit(X, y)
     f_est = model.predict(z)
     error = np.max(np.abs(f - f_est))
-    assert error < 0.35
+    assert error < 0.3
 
 
 def test_training_pid_on_float_dataset_raises_value_error(dataset):

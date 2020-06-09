@@ -1,14 +1,12 @@
 """1D Gaussian Process regression, accelerated with Fourier methods."""
-import math
 from typing import Optional, Tuple
 
 import numpy as np
 import sklearn.base
 from scipy import linalg, optimize
 from sklearn.utils import validation
-from torch import quasirandom
 
-from gdec import npgp
+from gdec import npgp, useful
 
 
 def sufficient_statistics(
@@ -46,147 +44,6 @@ def prune(
     return spectrum_freqs, spectrum, phixphix, phixy
 
 
-def rbf_spectrum(
-    w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
-) -> np.ndarray:
-    """Evaluate the Matern 5/2 power spectrum element-wise at ``w``.
-
-    Args:
-        w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
-            shape (n, ).
-        amplitude: The kernel amplitude, can be batched with shape (b, ).
-        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
-
-    Returns:
-        The Matern 5/2 spectrum evaluated at U, of shape (b, n).
-
-    """
-    return (
-        amplitude ** 2
-        * np.sqrt(2 * math.pi * lengthscale ** 2)
-        * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
-    )
-
-
-def rbf_spectrum_dr(
-    w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
-) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. rho.
-
-    Args:
-        w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
-            shape (n, ).
-        amplitude: The kernel amplitude, can be batched with shape (b, ).
-        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
-
-    Returns:
-        The RBF spectrum derivative at U, of shape (b, n).
-
-    """
-    return (
-        2
-        * amplitude
-        * np.sqrt(2 * math.pi * lengthscale ** 2)
-        * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
-    )
-
-
-def rbf_spectrum_dl(
-    w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
-) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. rho.
-
-    Args:
-        w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
-            shape (n, ).
-        amplitude: The kernel amplitude, can be batched with shape (b, ).
-        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
-
-    Returns:
-        The RBF spectrum derivative at U, of shape (b, n).
-
-    """
-    return (
-        amplitude ** 2
-        * np.sqrt(2 * math.pi)
-        * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
-        * (1 - 4 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
-    )
-
-
-def rbf_spectrum_drdr(
-    w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
-) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. rho.
-
-    Args:
-        w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
-            shape (n, ).
-        amplitude: The kernel amplitude, can be batched with shape (b, ).
-        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
-
-    Returns:
-        The RBF spectrum derivative at U, of shape (b, n).
-
-    """
-    return (
-        2
-        * np.sqrt(2 * math.pi * lengthscale ** 2)
-        * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
-    )
-
-
-def rbf_spectrum_dldl(
-    w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
-) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. rho.
-
-    Args:
-        w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
-            shape (n, ).
-        amplitude: The kernel amplitude, can be batched with shape (b, ).
-        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
-
-    Returns:
-        The RBF spectrum derivative at U, of shape (b, n).
-
-    """
-    return (
-        -(amplitude ** 2)
-        * np.sqrt(2 * math.pi)
-        * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
-        * 4
-        * math.pi ** 2
-        * lengthscale
-        * w ** 2
-        * (3 - 4 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
-    )
-
-
-def rbf_spectrum_dldr(
-    w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
-) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. rho.
-
-    Args:
-        w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
-            shape (n, ).
-        amplitude: The kernel amplitude, can be batched with shape (b, ).
-        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
-
-    Returns:
-        The RBF spectrum derivative at U, of shape (b, n).
-
-    """
-    return (
-        2
-        * amplitude
-        * np.sqrt(2 * math.pi)
-        * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
-        * (1 - 4 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
-    )
-
-
 def nll(
     theta: np.ndarray,
     sstats: Tuple[int, np.ndarray, np.ndarray, np.ndarray],
@@ -206,7 +63,7 @@ def nll(
     """
     sigma, amplitude, lengthscale = theta
     sigma2 = sigma ** 2
-    spectrum = rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
+    spectrum = npgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
 
     # Compute sufficient statistics
     n, phixphix, phixy, yy = sstats
@@ -235,7 +92,7 @@ def nll_grad(
     sigma, amplitude, lengthscale = theta
     sigma2 = sigma ** 2
     sigma3 = sigma ** 3
-    spectrum = rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
+    spectrum = npgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
 
     n, phixphix, phixy, yy = sstats
     spectrum_freqs, spectrum, phixphix, phixy = prune(
@@ -251,9 +108,9 @@ def nll_grad(
     dsigmab = -(2 / sigma3) * phixy
 
     Kinv_diag = 1 / spectrum
-    drhoK_diag = rbf_spectrum_dr(spectrum_freqs, amplitude, lengthscale)
+    drhoK_diag = npgp.rbf_spectrum_dr(spectrum_freqs, amplitude, lengthscale)
     drhoA_diag = -((Kinv_diag) ** 2) * drhoK_diag
-    dlK_diag = rbf_spectrum_dl(spectrum_freqs, amplitude, lengthscale)
+    dlK_diag = npgp.rbf_spectrum_dl(spectrum_freqs, amplitude, lengthscale)
     dlA_diag = -((Kinv_diag) ** 2) * dlK_diag
 
     dsigma = (
@@ -280,7 +137,7 @@ def nll_hess(
     theta: np.ndarray, sstats: np.ndarray, spectrum_freqs: np.ndarray
 ) -> np.ndarray:
     sigma, amplitude, lengthscale = theta
-    spectrum = rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
+    spectrum = npgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
     n, phixphix, phixy, yy = sstats
     spectrum_freqs, spectrum, phixphix, phixy = prune(
         spectrum_freqs, spectrum, phixphix, phixy
@@ -302,11 +159,11 @@ def nll_hess(
     dsigma2b = (6 / sigma ** 4) * phixy
     dsigmaAinvb = -Ainv @ dsigmaA @ Ainvb + Ainv @ dsigmab
 
-    drhoK = np.diag(rbf_spectrum_dr(spectrum_freqs, amplitude, lengthscale))
-    dlK = np.diag(rbf_spectrum_dl(spectrum_freqs, amplitude, lengthscale))
-    drhodrhoK = np.diag(rbf_spectrum_drdr(spectrum_freqs, amplitude, lengthscale))
-    dldlK = np.diag(rbf_spectrum_dldl(spectrum_freqs, amplitude, lengthscale))
-    dldrK = np.diag(rbf_spectrum_dldr(spectrum_freqs, amplitude, lengthscale))
+    drhoK = np.diag(npgp.rbf_spectrum_dr(spectrum_freqs, amplitude, lengthscale))
+    dlK = np.diag(npgp.rbf_spectrum_dl(spectrum_freqs, amplitude, lengthscale))
+    drhodrhoK = np.diag(npgp.rbf_spectrum_drdr(spectrum_freqs, amplitude, lengthscale))
+    dldlK = np.diag(npgp.rbf_spectrum_dldl(spectrum_freqs, amplitude, lengthscale))
+    dldrK = np.diag(npgp.rbf_spectrum_dldr(spectrum_freqs, amplitude, lengthscale))
 
     drhoA = np.diag(drhoK @ -((Kinv_diag) ** 2))
     dlA = np.diag(dlK @ -((Kinv_diag) ** 2))
@@ -435,32 +292,25 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         self.sstats_ = sufficient_statistics(x, y, basis)
 
         # Do an initial grid search to find a good initialization
-        sobol = quasirandom.SobolEngine(dimension=3, scramble=True, seed=43)
-        draws = sobol.draw(512).numpy()
+        n_points = 8
+        y_var = np.var(y)
 
-        noise_lower = 0.1 * np.std(y)
-        noise_upper = 0.5 * np.std(y)
-        noises = (noise_upper - noise_lower) * draws[:, 0] + noise_lower
+        log_noise_lower = np.log(min(1, y_var * 0.05))
+        log_noise_upper = np.log(y_var)
+        noises = np.exp(np.linspace(log_noise_lower, log_noise_upper, 4))
 
-        amplitude_lower = 0.1
-        amplitude_upper = np.max(np.abs(y))
-        if amplitude_upper < amplitude_lower:
-            amplitude_upper = 2.0
-        amplitudes = (amplitude_upper - amplitude_lower) * draws[:, 1] + amplitude_lower
+        log_amplitude_lower = np.log(min(1, y_var * 0.05))
+        log_amplitude_upper = np.log(y_var)
+        amplitudes = np.exp(
+            np.linspace(log_amplitude_lower, log_amplitude_upper, n_points)
+        )
 
-        lengthscale_lower = 0.5
-        lengthscale_upper = self.grid_size_ - self.grid_size_ // 8
-        log_lengthscale_lower = math.log(lengthscale_lower)
-        log_lengthscale_upper = math.log(lengthscale_upper)
-        log_lengthscales = (log_lengthscale_upper - log_lengthscale_lower) * draws[
-            :, 2
-        ] + log_lengthscale_lower
-        lengthscales = np.exp(log_lengthscales)
-        # lengthscales = (lengthscale_upper - lengthscale_lower) * draws[
-        #     :, 2
-        # ] + lengthscale_lower
-
-        theta_0s = np.stack((noises, amplitudes, lengthscales), axis=0).T
+        log_lengthscale_min = np.log(1.0)
+        log_lengthscale_max = np.log(np.ptp(X) / 2)
+        lengthscales = np.exp(
+            np.linspace(log_lengthscale_min, log_lengthscale_max, n_points)
+        )
+        theta_0s = useful.product(noises, amplitudes, lengthscales)
 
         losses = []
         for i in theta_0s:
@@ -489,7 +339,7 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         self.lengthscale_ = np.abs(self.lengthscale_)
 
         # Fit latent function with MAP estimate
-        spectrum = rbf_spectrum(
+        spectrum = npgp.rbf_spectrum(
             self.spectrum_freqs_, self.amplitude_, self.lengthscale_
         )
         whitened_basis = np.sqrt(spectrum)[None, :] * basis

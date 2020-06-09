@@ -82,7 +82,7 @@ def circdist(x: np.ndarray, y: np.ndarray, circumference: float) -> np.ndarray:
 
 
 def product(*args: np.ndarray) -> np.ndarray:
-    """Computes the cartesian product of input arrays.
+    """Compute the cartesian product of input arrays.
 
     Args:
         args: The input arrays, of shape `(n, )` (can have different lengths).
