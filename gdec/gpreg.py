@@ -34,7 +34,7 @@ def prune(
     phixy: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Prunes the spectrum and its associated matrices."""
-    condition_thresh = 1e100
+    condition_thresh = 1e6
     spectrum_thresh = np.max(np.abs(spectrum)) / condition_thresh
     (mask,) = np.nonzero(np.abs(spectrum) > spectrum_thresh)
     spectrum_freqs = spectrum_freqs[mask]
@@ -64,25 +64,25 @@ def nll(
     sigma, amplitude, lengthscale = theta
     sigma2 = sigma ** 2
     spectrum = npgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
-
-    # Compute sufficient statistics
     n, phixphix, phixy, yy = sstats
     spectrum_freqs, spectrum, phixphix, phixy = prune(
         spectrum_freqs, spectrum, phixphix, phixy
     )
 
     beta = 1 / sigma2
-    A = beta * phixphix + np.diag(1 / spectrum)
+    Kinv_diag = 1 / spectrum
+    phixphix_diag = np.diag(phixphix)
+    A_diag = beta * phixphix_diag + Kinv_diag
     b = beta * phixy
-    (L, lower) = linalg.cho_factor(A)
+    Ainvb = b / A_diag
 
     return 0.5 * (
         n * np.log(2 * np.pi)
         + n * np.log(sigma2)
         + beta * yy
         + np.log(spectrum).sum()
-        + 2 * np.sum(np.log(np.diag(L)))
-        - b.T @ linalg.cho_solve((L, lower), b)
+        + np.log(A_diag).sum()
+        - b @ Ainvb
     )
 
 
@@ -102,44 +102,42 @@ def nll_grad(
 
     """
     sigma, amplitude, lengthscale = theta
-    sigma2 = sigma ** 2
-    sigma3 = sigma ** 3
     spectrum = npgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
-
     n, phixphix, phixy, yy = sstats
     spectrum_freqs, spectrum, phixphix, phixy = prune(
         spectrum_freqs, spectrum, phixphix, phixy
     )
 
-    beta = 1 / sigma2
-    A = beta * phixphix + np.diag(1 / spectrum)
-    b = beta * phixy
-    Ainv = linalg.inv(A)
-    Ainvb = Ainv @ b
-    dsigmaA = -(2 / sigma3) * phixphix
-    dsigmab = -(2 / sigma3) * phixy
-
     Kinv_diag = 1 / spectrum
+    Kinv2_diag = Kinv_diag ** 2
+    phixphix_diag = np.diag(phixphix)
+    A_diag = (1 / sigma ** 2) * phixphix_diag + Kinv_diag
+    b = (1 / sigma ** 2) * phixy
+    Ainv_diag = 1 / A_diag
+    Ainvb = Ainv_diag * b
+
     drhoK_diag = npgp.rbf_spectrum_dr(spectrum_freqs, amplitude, lengthscale)
-    drhoA_diag = -((Kinv_diag) ** 2) * drhoK_diag
+    drhoA_diag = -Kinv2_diag * drhoK_diag
     dlK_diag = npgp.rbf_spectrum_dl(spectrum_freqs, amplitude, lengthscale)
-    dlA_diag = -((Kinv_diag) ** 2) * dlK_diag
+    dlA_diag = -Kinv2_diag * dlK_diag
+    dsigmaA_diag = -(2 / sigma ** 3) * phixphix_diag
+    dsigmab = -(2 / sigma ** 3) * phixy
 
     dsigma = (
         n / sigma
-        - yy / sigma3
-        + 0.5 * (Ainv * dsigmaA).sum()
-        - Ainvb @ (dsigmab - 0.5 * dsigmaA @ Ainvb)
+        - yy / (sigma ** 3)
+        + 0.5 * Ainv_diag @ dsigmaA_diag
+        - Ainvb @ (dsigmab - 0.5 * dsigmaA_diag * Ainvb)
     )
 
     drho = 0.5 * (
-        (np.diag(Ainv) * drhoA_diag + Kinv_diag * drhoK_diag).sum()
+        Ainv_diag @ drhoA_diag
+        + Kinv_diag @ drhoK_diag
         + np.dot(Ainvb * drhoA_diag, Ainvb)
     )
 
     dl = 0.5 * (
-        (np.diag(Ainv) * dlA_diag + Kinv_diag * dlK_diag).sum()
-        + np.dot(Ainvb * dlA_diag, Ainvb)
+        Ainv_diag @ dlA_diag + Kinv_diag @ dlK_diag + np.dot(Ainvb * dlA_diag, Ainvb)
     )
 
     return np.array([dsigma, drho, dl])
@@ -165,76 +163,65 @@ def nll_hess(
     """
     sigma, amplitude, lengthscale = theta
     spectrum = npgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
-    n, phixphix, phixy, yy = sstats
+    # Note: basis is orthogonal, so phixhpix is diagonal
+    (n, phixphix, phixy, yy,) = sstats
     spectrum_freqs, spectrum, phixphix, phixy = prune(
         spectrum_freqs, spectrum, phixphix, phixy
     )
 
-    A = (1 / sigma ** 2) * phixphix + np.diag(1 / spectrum)
-    b = (1 / sigma ** 2) * phixy
-    Ainv = linalg.inv(A)
-    Ainvb = Ainv @ b
-
     Kinv_diag = 1 / spectrum
-    Kinv = np.diag(Kinv_diag)
-    Kinv2 = np.diag(Kinv_diag ** 2)
-    Kinv3 = np.diag(Kinv_diag ** 3)
+    Kinv2_diag = Kinv_diag ** 2
+    phixphix_diag = np.diag(phixphix)
+    A_diag = (1 / sigma ** 2) * phixphix_diag + Kinv_diag
+    b = (1 / sigma ** 2) * phixy
+    Ainv_diag = 1 / A_diag
+    Ainvb = Ainv_diag * b
 
-    dsigmaA = -(2 / sigma ** 3) * phixphix
-    dsigma2A = (6 / sigma ** 4) * phixphix
+    dsigmaA_diag = -(2 / sigma ** 3) * phixphix_diag
+    dsigma2A_diag = (6 / sigma ** 4) * phixphix_diag
     dsigmab = -(2 / sigma ** 3) * phixy
     dsigma2b = (6 / sigma ** 4) * phixy
-    dsigmaAinvb = -Ainv @ dsigmaA @ Ainvb + Ainv @ dsigmab
+    dsigmaAinvb = -Ainv_diag * (dsigmaA_diag * Ainvb - dsigmab)
 
-    drhoK = np.diag(npgp.rbf_spectrum_dr(spectrum_freqs, amplitude, lengthscale))
-    dlK = np.diag(npgp.rbf_spectrum_dl(spectrum_freqs, amplitude, lengthscale))
-    drhodrhoK = np.diag(npgp.rbf_spectrum_drdr(spectrum_freqs, amplitude, lengthscale))
-    dldlK = np.diag(npgp.rbf_spectrum_dldl(spectrum_freqs, amplitude, lengthscale))
-    dldrK = np.diag(npgp.rbf_spectrum_dldr(spectrum_freqs, amplitude, lengthscale))
+    drhoK_diag = npgp.rbf_spectrum_dr(spectrum_freqs, amplitude, lengthscale)
+    dlK_diag = npgp.rbf_spectrum_dl(spectrum_freqs, amplitude, lengthscale)
+    drhodrhoK_diag = npgp.rbf_spectrum_drdr(spectrum_freqs, amplitude, lengthscale)
+    dldlK_diag = npgp.rbf_spectrum_dldl(spectrum_freqs, amplitude, lengthscale)
+    dldrK_diag = npgp.rbf_spectrum_dldr(spectrum_freqs, amplitude, lengthscale)
 
-    drhoA = np.diag(drhoK @ -((Kinv_diag) ** 2))
-    dlA = np.diag(dlK @ -((Kinv_diag) ** 2))
+    drhoA_diag = -drhoK_diag * Kinv2_diag
+    dlA_diag = -dlK_diag * Kinv2_diag
 
     dsigmadsigma = (
         -(n / sigma ** 2)
-        + 3 * yy / sigma ** 4
-        - 0.5 * np.sum((Ainv @ dsigmaA) ** 2)
-        + 0.5 * np.trace(Ainv @ dsigma2A)
-        + Ainv @ dsigmab @ (dsigmaA @ Ainvb - dsigmab)
-        - Ainvb.T @ dsigma2b
-        + Ainv @ (dsigmab - dsigmaA @ Ainvb) @ dsigmaA @ Ainvb
-        + 0.5 * (Ainvb.T @ dsigma2A @ Ainvb)
+        + 3 * yy / (sigma ** 4)
+        - 0.5 * np.sum((Ainv_diag * dsigmaA_diag) ** 2)
+        + 0.5 * Ainv_diag @ dsigma2A_diag
+        + dsigmaAinvb @ (Ainvb * dsigmaA_diag - dsigmab)
+        + 0.5 * Ainvb @ (Ainvb * dsigma2A_diag - 2 * dsigma2b)
     )
 
-    def dt1dt2(dt1K: np.ndarray, dt2K: np.ndarray, dt1t2K: np.ndarray) -> np.ndarray:
+    def dt1dt2(
+        dt1K_diag: np.ndarray, dt2K_diag: np.ndarray, dt1t2K_diag: np.ndarray
+    ) -> np.ndarray:
         """Compute the Hessian entry w.r.t. kernel params t1 and t2."""
-        dt2A = -np.diag(Kinv_diag ** 2) @ dt2K
-        return (
-            0.5
-            * np.trace(
-                Kinv
-                @ (dt1t2K - dt2K @ Kinv @ dt1K)
-                @ (np.eye(Ainv.shape[0]) - Kinv @ Ainv)
-                + dt1K @ Kinv @ (dt2K @ Kinv + Ainv @ dt2A) @ Ainv @ Kinv
-            )
-            + Ainvb.T @ dt2A @ Ainv @ dt1K @ Kinv2 @ Ainvb
-            - 0.5
-            * Ainvb.T
-            @ ((dt1t2K - dt1K @ dt2K @ Kinv) @ Kinv2 - dt1K @ dt2K @ Kinv3)
-            @ Ainvb
-        )
+        C = Kinv_diag - Ainv_diag * Kinv2_diag
+        D = dt1K_diag * dt2K_diag * C
+        E = dt1t2K_diag - D
+        return 0.5 * (np.sum(C * E) + Ainvb @ ((Kinv2_diag * (D - E)) * Ainvb))
 
-    def dsigmadt(dtA: np.ndarray) -> np.ndarray:
+    def dsigmadt(dtA_diag: np.ndarray) -> np.ndarray:
         """Compute the Hessian entry w.r.t. sigma and kernal param t."""
-        return (
-            -0.5 * np.trace(dtA @ Ainv @ dsigmaA @ Ainv) + dsigmaAinvb.T @ dtA @ Ainvb
+        return -0.5 * (
+            np.sum(dtA_diag * dsigmaA_diag * Ainv_diag ** 2)
+            + dsigmaAinvb @ (dtA_diag * Ainvb)
         )
 
-    drhodrho = dt1dt2(drhoK, drhoK, drhodrhoK)
-    dldl = dt1dt2(dlK, dlK, dldlK)
-    dldr = dt1dt2(dlK, drhoK, dldrK)
-    dsigmadrho = dsigmadt(drhoA)
-    dsigmadl = dsigmadt(dlA)
+    drhodrho = dt1dt2(drhoK_diag, drhoK_diag, drhodrhoK_diag)
+    dldl = dt1dt2(dlK_diag, dlK_diag, dldlK_diag)
+    dldr = dt1dt2(dlK_diag, drhoK_diag, dldrK_diag)
+    dsigmadrho = dsigmadt(drhoA_diag)
+    dsigmadl = dsigmadt(dlA_diag)
 
     return np.array(
         [
@@ -320,7 +307,9 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
 
         # Do an initial grid search to find a good initialization
         n_points = 8
-        y_var = np.var(y)
+        yy = self.sstats_[3]
+        n_samples = y.size
+        y_var = yy / n_samples  # We assume that y is centered
 
         log_noise_lower = np.log(min(1, y_var * 0.05))
         log_noise_upper = np.log(y_var)
@@ -332,12 +321,13 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
             np.linspace(log_amplitude_lower, log_amplitude_upper, n_points)
         )
 
-        log_lengthscale_min = np.log(1.0)
+        log_lengthscale_min = np.log(0.1)
         log_lengthscale_max = np.log(np.ptp(X) / 2)
         lengthscales = np.exp(
             np.linspace(log_lengthscale_min, log_lengthscale_max, n_points)
         )
         theta_0s = useful.product(noises, amplitudes, lengthscales)
+        # import pdb; pdb.set_trace()
 
         losses = []
         for i in theta_0s:
