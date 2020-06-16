@@ -9,6 +9,72 @@ from sklearn.utils import validation
 from gdec import npgp, useful
 
 
+def _grid_range(low: float, hi: float, ngrid: int) -> Tuple[float, float]:
+    """Calculate a grid range according to Jonathan's code.
+
+    For some reason his code doesn't evaluate on the grid endpoints.
+
+    Args:
+        low: The low end of the range.
+        hi: The high end of the range.
+
+    Returns:
+        The range along which to calculate the grid points.
+
+    """
+    len_ = hi - low
+    offset = len_ / (2 * ngrid)
+    return low + offset, hi - offset
+
+
+def param_pushforward(theta: np.ndarray) -> np.ndarray:
+    """Convert an array of regular hyperparameters to optimization-domain params.
+
+    Args:
+        theta: An array of shape (3, ) or (b, 3), where b is a batch dimension, holding
+            the noise standard deviation (sigma, not sigma^2), kernel amplitude
+            (p, not p^2), and kernel lengthscale (l, not l^2).
+
+    Returns:
+        An array of shape (3, ) or (b, 3) containing the noise standard deviation,
+        log rho tilde (i.e. log(rho^2 * l)), and log lengthscale^2, i.e. log(l^2).
+
+    """
+    if theta.ndim == 1:
+        theta = np.expand_dims(theta, 0)  # Add batch dimension
+    assert theta.ndim == 2
+    noises = theta[:, 0]
+    amps = theta[:, 1]
+    lens = theta[:, 2]
+    out = np.array([noises, np.log(amps ** 2 * lens), np.log(lens ** 2)]).T
+    return np.squeeze(out)
+
+
+def param_pullback(theta: np.ndarray) -> np.ndarray:
+    """Convert an array of optimizaion-domain hyperparams to regular params.
+
+    Args:
+        theta: An array of shape (3, ) or (b, 3), where b is a batch dimension
+            containing the noise standard deviation, log rho tilde
+            (i.e. log(rho^2 * l)), and log lengthscale^2, i.e. log(l^2).
+
+    Returns:
+        theta: An array of shape (3, ) or (b, 3), where b is a batch dimension, holding
+            the noise standard deviation (sigma, not sigma^2), kernel amplitude
+            (p, not p^2), and kernel lengthscale (l, not l^2).
+
+    """
+    if theta.ndim == 1:
+        theta = np.expand_dims(theta, 0)  # Add batch dimension
+    assert theta.ndim == 2
+    noises = theta[:, 0]
+    log_rho_tildes = theta[:, 1]
+    log_len2s = theta[:, 2]
+    lens = np.sqrt(np.exp(log_len2s))
+    out = np.array([noises, np.sqrt(np.exp(log_rho_tildes) / lens), lens]).T
+    return np.squeeze(out)
+
+
 def sufficient_statistics(
     x: np.ndarray, y: np.ndarray, basis: np.ndarray
 ) -> Tuple[int, np.ndarray, np.ndarray, np.ndarray]:
@@ -300,34 +366,43 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
             raise ValueError("X must be an array with int/unit dtype.")
         self.grid_size_ = np.unique(x).size if grid_size is None else grid_size
 
-        # It's cleaner to use the whitened_fourier_basis in the loss function but that
-        # triggers JAX recompilation on every evaulation, leading to slow refits
         basis, self.spectrum_freqs_ = npgp.real_fourier_basis(self.grid_size_)
         self.sstats_ = sufficient_statistics(x, y, basis)
 
         # Do an initial grid search to find a good initialization
-        n_points = 8
+        # The below code is not as clean as it could be, but it matches Jonathan's
+        # implementation exactly
+        n_points = 4
         yy = self.sstats_[3]
         n_samples = y.size
         y_var = yy / n_samples  # We assume that y is centered
 
-        log_noise_lower = np.log(min(1, y_var * 0.05))
-        log_noise_upper = np.log(y_var)
-        noises = np.exp(np.linspace(log_noise_lower, log_noise_upper, 4))
-
-        log_amplitude_lower = np.log(min(1, y_var * 0.05))
-        log_amplitude_upper = np.log(y_var)
-        amplitudes = np.exp(
-            np.linspace(log_amplitude_lower, log_amplitude_upper, n_points)
+        log_noise_var_lower = np.log(min(1, y_var * 0.05))
+        log_noise_var_upper = np.log(y_var)
+        log_noise_range = _grid_range(
+            log_noise_var_lower, log_noise_var_upper, n_points
         )
+        noises = np.sqrt(np.exp(np.linspace(*log_noise_range, n_points)))
+
+        log_amplitude2_lower = np.log(min(1, y_var * 0.05))
+        log_amplitude2_upper = np.log(y_var)
 
         log_lengthscale_min = np.log(0.1)
         log_lengthscale_max = np.log(np.ptp(X) / 2)
-        lengthscales = np.exp(
-            np.linspace(log_lengthscale_min, log_lengthscale_max, n_points)
+        log_lengthscale_range = _grid_range(
+            log_lengthscale_min, log_lengthscale_max, n_points
         )
-        theta_0s = useful.product(noises, amplitudes, lengthscales)
-        # import pdb; pdb.set_trace()
+        lengthscales = np.exp(np.linspace(*log_lengthscale_range, n_points))
+
+        trho_min = log_amplitude2_lower + np.log(
+            np.sqrt(2 * np.pi) * np.exp(log_lengthscale_min)
+        )
+        trho_max = log_amplitude2_upper + np.log(
+            np.sqrt(2 * np.pi) * np.exp(log_lengthscale_max)
+        )
+        trho_range = _grid_range(trho_min, trho_max, n_points)
+        trhos = np.linspace(*trho_range, n_points)
+        theta_0s = useful.product(noises, trhos, np.log(lengthscales ** 2))
 
         losses = []
         for i in theta_0s:
@@ -352,12 +427,13 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         results = minimize_loss(
             self.noise_initial, self.amplitude_initial, self.lengthscale_initial
         )
-        self.noise_, self.amplitude_, self.lengthscale_ = results.x
-        self.lengthscale_ = np.abs(self.lengthscale_)
+        self.noise_, self.log_rho_tilde_, self.log_lengthscale_ = results.x
+        self.lengthscale_ = np.sqrt(np.exp(self.log_lengthscale_))
+        self.amplitude_ = np.sqrt(np.exp(self.log_rho_tilde_) / self.lengthscale_)
 
         # Fit latent function with MAP estimate
         spectrum = npgp.rbf_spectrum(
-            self.spectrum_freqs_, self.amplitude_, self.lengthscale_
+            self.spectrum_freqs_, self.log_rho_tilde_, self.log_lengthscale_
         )
         whitened_basis = np.sqrt(spectrum)[None, :] * basis
         self.f_, self.f_var_ = map_estimate(x, y, whitened_basis, self.noise_)
@@ -380,16 +456,16 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         validation.check_is_fitted(self, "is_fitted_")
         return self.f_[np.squeeze(X)]
 
-    def nll(self, hyperparams: Optional[np.ndarray] = None) -> float:
+    def nll(self, theta: Optional[np.ndarray] = None) -> float:
         """Evaluate the negative log likelihood.
 
         Args:
-            hyperparams: An array of shape (3, ) containing the noise standard
+            theta: An array of shape (3, ) containing the noise standard
             deviation, the amplitude standard deviation, and the lengthscale. If
             None, the trained hyperparameters are used.
 
         """
         validation.check_is_fitted(self, "is_fitted_")
-        if hyperparams is None:
-            hyperparams = np.array([self.noise_, self.amplitude_, self.lengthscale_])
-        return nll(hyperparams, self.sstats_, self.spectrum_freqs_)
+        if theta is None:
+            theta = np.array([self.noise_, self.amplitude_, self.lengthscale_])
+        return nll(param_pushforward(theta), self.sstats_, self.spectrum_freqs_)

@@ -47,141 +47,150 @@ def real_fourier_basis(n: int) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def rbf_spectrum(
-    w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
+    w: np.ndarray, log_rho_tilde: np.ndarray, log_lengthscale: np.ndarray
 ) -> np.ndarray:
-    """Evaluate the RBF spectrum element-wise at ``w``.
+    """Evaluate the RBF spectrum.
 
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
             shape (n, ).
-        amplitude: The kernel amplitude, can be batched with shape (b, ).
-        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
+        log_rho_tilde: log(amplitude * lengthscale ** 2), can be batched with shape
+            (b, ).
+        log_lengthscale: The kernel log lengthscale, can be batched with shape (b, ).
 
     Returns:
-        The Matern 5/2 spectrum evaluated at U, of shape (b, n).
+        The RBF spectrum derivative at U, of shape (b, n).
 
     """
     return (
-        amplitude ** 2
-        * np.sqrt(2 * math.pi * lengthscale ** 2)
-        * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
+        np.exp(log_rho_tilde)
+        * np.sqrt(2 * math.pi)
+        * np.exp(-2 * math.pi ** 2 * np.exp(log_lengthscale) * w ** 2)
     )
 
 
 def rbf_spectrum_dr(
-    w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
+    w: np.ndarray, log_rho_tilde: np.ndarray, log_lengthscale: np.ndarray
 ) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. amplitude.
+    """Evaluate the RBF spectrum derivative w.r.t log_rho_tilde.
 
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
             shape (n, ).
-        amplitude: The kernel amplitude, can be batched with shape (b, ).
-        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
+        log_rho_tilde: log(amplitude * lengthscale ** 2), can be batched with shape
+            (b, ).
+        log_lengthscale: The kernel log lengthscale, can be batched with shape (b, ).
 
     Returns:
         The RBF spectrum derivative at U, of shape (b, n).
 
     """
     return (
-        2
-        * amplitude
-        * np.sqrt(2 * math.pi * lengthscale ** 2)
-        * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
+        np.exp(log_rho_tilde)
+        * np.sqrt(2 * math.pi)
+        * np.exp(-2 * math.pi ** 2 * np.exp(log_lengthscale) * w ** 2)
     )
 
 
 def rbf_spectrum_dl(
-    w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
+    w: np.ndarray, log_rho_tilde: np.ndarray, log_lengthscale: np.ndarray
 ) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. lengthscale.
+    """Evaluate the RBF spectrum derivative w.r.t. log_lengthscale.
 
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
             shape (n, ).
-        amplitude: The kernel amplitude, can be batched with shape (b, ).
-        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
+        log_rho_tilde: log(amplitude * lengthscale ** 2), can be batched with shape
+            (b, ).
+        log_lengthscale: The kernel log lengthscale, can be batched with shape (b, ).
 
     Returns:
         The RBF spectrum derivative at U, of shape (b, n).
 
     """
     return (
-        amplitude ** 2
+        np.exp(log_rho_tilde)
         * np.sqrt(2 * math.pi)
-        * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
-        * (1 - 4 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
+        * np.exp(-2 * math.pi ** 2 * np.exp(log_lengthscale) * w ** 2)
+        * -2
+        * math.pi ** 2
+        * np.exp(log_lengthscale)
+        * w ** 2
     )
 
 
 def rbf_spectrum_drdr(
-    w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
+    w: np.ndarray, log_rho_tilde: np.ndarray, log_lengthscale: np.ndarray
 ) -> np.ndarray:
-    """Evaluate the RBF spectrum 2nd derivative w.r.t. amplitude.
+    """Evaluate the RBF spectrum 2nd derivative w.r.t. log_rho_tilde.
 
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
             shape (n, ).
-        amplitude: The kernel amplitude, can be batched with shape (b, ).
-        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
+        log_rho_tilde: log(amplitude * lengthscale ** 2), can be batched with shape
+            (b, ).
+        log_lengthscale: The kernel log lengthscale, can be batched with shape (b, ).
 
     Returns:
         The RBF spectrum derivative at U, of shape (b, n).
 
     """
     return (
-        2
-        * np.sqrt(2 * math.pi * lengthscale ** 2)
-        * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
+        np.exp(log_rho_tilde)
+        * np.sqrt(2 * math.pi)
+        * np.exp(-2 * math.pi ** 2 * np.exp(log_lengthscale) * w ** 2)
     )
 
 
 def rbf_spectrum_dldl(
-    w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
+    w: np.ndarray, log_rho_tilde: np.ndarray, log_lengthscale: np.ndarray
 ) -> np.ndarray:
-    """Evaluate the RBF spectrum 2nd derivative w.r.t. lengthscale.
+    """Evaluate the RBF spectrum 2nd derivative w.r.t. log_lengthscale.
 
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
             shape (n, ).
-        amplitude: The kernel amplitude, can be batched with shape (b, ).
-        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
+        log_rho_tilde: log(amplitude * lengthscale ** 2), can be batched with shape
+            (b, ).
+        log_lengthscale: The kernel log lengthscale, can be batched with shape (b, ).
 
     Returns:
         The RBF spectrum derivative at U, of shape (b, n).
 
     """
     return (
-        -(amplitude ** 2)
-        * np.sqrt(2 * math.pi)
-        * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
-        * 4
+        -2
         * math.pi ** 2
-        * lengthscale
+        * np.sqrt(2 * math.pi)
         * w ** 2
-        * (3 - 4 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
+        * np.exp(log_rho_tilde)
+        * np.exp(-2 * math.pi ** 2 * np.exp(log_lengthscale) * w ** 2 + log_lengthscale)
+        * (-2 * math.pi ** 2 * np.exp(log_lengthscale) * w ** 2 + 1)
     )
 
 
 def rbf_spectrum_dldr(
-    w: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
+    w: np.ndarray, log_rho_tilde: np.ndarray, log_lengthscale: np.ndarray
 ) -> np.ndarray:
-    """Evaluate the RBF spectrum derivative w.r.t. amplitude and lengthscale..
+    """Evaluate the RBF spectrum derivative w.r.t. log_rho_tilde and log_lengthscale.
 
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
             shape (n, ).
-        amplitude: The kernel amplitude, can be batched with shape (b, ).
-        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
+        log_rho_tilde: log(amplitude * lengthscale ** 2), can be batched with shape
+            (b, ).
+        log_lengthscale: The kernel log lengthscale, can be batched with shape (b, ).
 
     Returns:
         The RBF spectrum derivative at U, of shape (b, n).
 
     """
     return (
-        2
-        * amplitude
+        np.exp(log_rho_tilde)
         * np.sqrt(2 * math.pi)
-        * np.exp(-2 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
-        * (1 - 4 * math.pi ** 2 * lengthscale ** 2 * w ** 2)
+        * np.exp(-2 * math.pi ** 2 * np.exp(log_lengthscale) * w ** 2)
+        * -2
+        * math.pi ** 2
+        * np.exp(log_lengthscale)
+        * w ** 2
     )
