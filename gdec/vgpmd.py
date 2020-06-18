@@ -30,6 +30,19 @@ def real_to_interval(x: torch.Tensor, low: float, high: float) -> torch.Tensor:
     return (high - low) * torch.sigmoid(x) + low
 
 
+def prune(spectrum: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Prunes the spectrum and its associated matrices."""
+    condition_thresh = 1e6
+    spectrum_thresh = torch.max(torch.abs(spectrum ** 2)) / condition_thresh
+    mask = torch.nonzero(
+        (torch.abs(spectrum ** 2) <= spectrum_thresh)
+        & (torch.abs(spectrum ** 2) <= 1e-32),
+        as_tuple=True,
+    )
+    spectrum[mask] = 0
+    return spectrum
+
+
 class VGPMDModule(nn.Module):
     """Variational Gaussian Process Linear Decoder."""
 
@@ -39,10 +52,12 @@ class VGPMDModule(nn.Module):
         self.register_buffer("n_classes", torch.tensor(n_classes))
         self.register_buffer("n_samples", torch.tensor(n_samples))
         self.log_amplitudes = nn.Parameter(
-            torch.full((n_dim,), math.log(7.0)), requires_grad=True
+            torch.full((n_dim,), math.log(8.0)), requires_grad=True
         )
         self.unconstrained_lengthscales = nn.Parameter(
-            torch.full((n_dim,), interval_to_real(1, low=0.01, high=n_classes)),
+            torch.full(
+                (n_dim,), interval_to_real(0.055 * n_classes, low=0.01, high=n_classes)
+            ),
             requires_grad=True,
         )
 
@@ -110,6 +125,7 @@ class VGPMDModule(nn.Module):
         spectrum = torchgp.rbf_spectrum(
             self.freqs, self.amplitudes(), self.lengthscales()  # type: ignore
         ).t()
+        spectrum = prune(spectrum)
         if self.training:  # type: ignore
             U = q.rsample((self.n_samples,))
             weights = self.basis @ (torch.sqrt(spectrum) * U)
@@ -209,11 +225,16 @@ def fit_tuning_curve_matrix(
         y_pred = model(X_train)
         loss = loss_fn(y_pred, y_train)
         loss.backward()
+        if torch.isnan(model.unconstrained_lengthscales.grad).any():
+            logging.debug(model.unconstrained_lengthscales.grad)
+            import pdb
+
+            pdb.set_trace()
         optimizer.step()
 
         if step % validate_every == 0:
             val_loss = validate(model, step)
-            logging.info("Step %d, test mae: %.2f", step, val_loss)
+            logging.info("Step %d, test mae: %.2f, ELBO %.2f", step, val_loss, loss)
             if val_loss < best_val_loss:
                 best_model.load_state_dict(model.state_dict())
                 best_val_loss = val_loss
