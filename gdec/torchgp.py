@@ -74,3 +74,33 @@ def rbf_spectrum(
         * torch.sqrt(2 * math.pi * lengthscales ** 2)
         * torch.exp(-2 * math.pi ** 2 * lengthscales ** 2 * w ** 2)
     )
+
+
+def matern_spectrum(
+    w: torch.Tensor,
+    amplitudes: torch.Tensor,
+    lengthscales: torch.Tensor,
+    nu: float = 2.5,
+) -> torch.Tensor:
+    """Evaluate the Matern 5/2 power spectrum element-wise at ``w``.
+
+    Args:
+        w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
+            shape (n, ).
+        amplitude: The kernel amplitude, can be batched with shape (b, ).
+        lengthscale: The kernel lengthscale, can be batched with shape (b, ).
+        nu: The smoothness parameter.
+
+    Returns:
+        The Matern 5/2 spectrum evaluated at U, of shape (b, n) (if the input amplitudes
+        and lengthscales have a batch dimension) and shape (n, ) otherwise.
+
+    """
+    amplitudes = torch.unsqueeze(amplitudes, -1)
+    lengthscales = torch.unsqueeze(lengthscales, -1)
+    return (
+        amplitudes ** 2
+        * (2 * math.sqrt(math.pi) * math.gamma(nu + 0.5) * (2 * nu) ** nu)
+        / (math.gamma(nu) * lengthscales ** (2 * nu))
+        * (2 * nu / lengthscales ** 2 + 4 * math.pi ** 2 * w ** 2) ** -(nu + 0.5)
+    )

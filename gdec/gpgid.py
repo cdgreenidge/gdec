@@ -33,9 +33,8 @@ def tuning_curve_matrix(
     lengthscales: List[float] = []
     noises: List[float] = []
     grid = np.arange(np.unique(y).size)
-    model = gpreg.PeriodicGPRegression(
-        n_classes=grid.size, amplitude_initial=10.0, lengthscale_initial=0.001
-    )
+    model = gpreg.PeriodicGPRegression()
+
     logger.info("Smoothing tuning curves...")
     for i in tqdm.tqdm(range(X.shape[1]), disable=not verbose):
         model.fit(y[:, None], X[:, i])
