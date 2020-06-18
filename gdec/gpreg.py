@@ -102,12 +102,7 @@ def prune(
     """Prunes the spectrum and its associated matrices."""
     condition_thresh = 1e6
     spectrum_thresh = np.max(np.abs(spectrum)) / condition_thresh
-    # The spectrum threshold condition makes sure we are only taking the dominant
-    # frequencies, and the 1e-100 condition makes sure that 1 / (spectrum ** 2) is
-    # computable (we need that quantity for the NLL Hessian)
-    (mask,) = np.nonzero(
-        np.logical_and(np.abs(spectrum) > spectrum_thresh, np.abs(spectrum) > 1e-100)
-    )
+    (mask,) = np.nonzero(np.abs(spectrum) > spectrum_thresh)
     spectrum_freqs = spectrum_freqs[mask]
     spectrum = spectrum[mask]
     phixphix = phixphix[mask, :][:, mask]
@@ -341,6 +336,17 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
 
     """
 
+    def __init__(
+        self,
+        n_classes,
+        noise_initial=1.0,
+        amplitude_initial=1.0,
+        lengthscale_initial=0.5,
+    ):
+        self.noise_initial = noise_initial
+        self.amplitude_initial = amplitude_initial
+        self.lengthscale_initial = lengthscale_initial
+
     def fit(self, X, y, grid_size: int = None):
         """Fit the Gaussian process regression.
 
@@ -405,13 +411,21 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         self.theta_0_ = theta_0s[np.argmin(losses)]
 
         # Fit hyperparameters
-        args = (self.sstats_, self.spectrum_freqs_)
-        results = optimize.minimize(
-            lambda theta: nll(theta, *args),
-            self.theta_0_,
-            method="trust-exact",
-            jac=lambda theta: nll_grad(theta, *args),
-            hess=lambda theta: nll_hess(theta, *args),
+        def minimize_loss(
+            noise_initial, amplitude_initial, lengthscale_initial
+        ) -> optimize.OptimizeResult:
+            args = (self.sstats_, self.spectrum_freqs_)
+            return optimize.minimize(
+                lambda theta: nll(theta, *args),
+                self.theta_0_,
+                method="trust-exact",
+                jac=lambda theta: nll_grad(theta, *args),
+                hess=lambda theta: nll_hess(theta, *args),
+                options={"gtol": 1.0e-34},
+            )
+
+        results = minimize_loss(
+            self.noise_initial, self.amplitude_initial, self.lengthscale_initial
         )
         self.noise_, self.log_rho_tilde_, self.log_lengthscale_ = results.x
         self.lengthscale_ = np.sqrt(np.exp(self.log_lengthscale_))

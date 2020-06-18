@@ -39,19 +39,17 @@ class VGPMDModule(nn.Module):
         self.register_buffer("n_classes", torch.tensor(n_classes))
         self.register_buffer("n_samples", torch.tensor(n_samples))
         self.log_amplitudes = nn.Parameter(
-            torch.full((n_dim,), math.log(16.0)), requires_grad=True
+            torch.full((n_dim,), math.log(7.0)), requires_grad=True
         )
         self.unconstrained_lengthscales = nn.Parameter(
-            torch.full(
-                (n_dim,), interval_to_real(0.1 * n_classes, low=0.01, high=n_classes)
-            ),
+            torch.full((n_dim,), interval_to_real(1, low=0.01, high=n_classes)),
             requires_grad=True,
         )
 
         # Variational posterior parameters, for torchgp-domain weights
         self.q_mean = nn.Parameter(torch.zeros((n_classes, n_dim)), requires_grad=True)
         self.log_q_scale = nn.Parameter(
-            torch.full((n_classes, n_dim), math.log(1.0e-6)), requires_grad=True
+            torch.full((n_classes, n_dim), math.log(1.0e-5)), requires_grad=True
         )
 
         basis, freqs = torchgp.real_fourier_basis(n_classes)
@@ -83,7 +81,7 @@ class VGPMDModule(nn.Module):
 
     def coefs(self) -> torch.Tensor:
         """Return a MAP estimate of the unwhitened coefficients."""
-        spectrum = torchgp.matern_spectrum(
+        spectrum = torchgp.rbf_spectrum(
             self.freqs, self.amplitudes(), self.lengthscales()  # type: ignore
         ).t()
         return torch.sqrt(spectrum) * self.q_mean
@@ -109,7 +107,7 @@ class VGPMDModule(nn.Module):
         """
         assert X.size()[1] == self.n_dim
         q = dist.Normal(self.q_mean, torch.exp(self.log_q_scale))
-        spectrum = torchgp.matern_spectrum(
+        spectrum = torchgp.rbf_spectrum(
             self.freqs, self.amplitudes(), self.lengthscales()  # type: ignore
         ).t()
         if self.training:  # type: ignore
@@ -160,11 +158,11 @@ class NegativeELBO(nn.Module):
 def fit_tuning_curve_matrix(
     X: np.ndarray,
     y: np.ndarray,
-    lr: float = 1.0e-2,
+    lr: float = 1.0e-3,
     max_steps: int = 20000,
     n_samples: int = 1,
     validate_every: int = 32,
-    patience: int = 4096,
+    patience: int = 32,
     cuda: bool = True,
     cuda_device: int = 0,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -205,7 +203,6 @@ def fit_tuning_curve_matrix(
         return utils.mean_abs_err(y_pred, y_true, n_classes)
 
     epochs_without_improvement = 0
-    steps = 0
     best_val_loss = float("inf")
     for step in range(max_steps):
         optimizer.zero_grad()
@@ -216,7 +213,7 @@ def fit_tuning_curve_matrix(
 
         if step % validate_every == 0:
             val_loss = validate(model, step)
-            logging.warn("Step %d, test mae: %.2f, ELBO: %.2f", step, val_loss, loss)
+            logging.info("Step %d, test mae: %.2f", step, val_loss)
             if val_loss < best_val_loss:
                 best_model.load_state_dict(model.state_dict())
                 best_val_loss = val_loss
@@ -230,15 +227,11 @@ def fit_tuning_curve_matrix(
             )
             break
 
-        if steps > 1:
-            break
-
-    chosen_model = model
     with torch.no_grad():
-        freq_coefs = chosen_model.coefs()
-        coefs = chosen_model.basis @ freq_coefs  # type: ignore
-        amplitudes = chosen_model.amplitudes()
-        lengthscales = chosen_model.lengthscales()
+        freq_coefs = best_model.coefs()
+        coefs = best_model.basis @ freq_coefs  # type: ignore
+        amplitudes = best_model.amplitudes()
+        lengthscales = best_model.lengthscales()
 
     return freq_coefs.cpu(), coefs.cpu(), amplitudes.cpu(), lengthscales.cpu()
 
@@ -252,11 +245,11 @@ class VariationalGaussianProcessMulticlassDecoder(
         self,
         X: np.ndarray,
         y: np.ndarray,
-        lr: float = 0.001,
-        max_steps: int = 2000,
-        n_samples: int = 4,
+        lr: float = 1.0e-3,
+        max_steps: int = 20000,
+        n_samples: int = 1,
         validate_every: int = 32,
-        patience: int = 8,
+        patience: int = 32,
         cuda: bool = True,
         cuda_device: int = 0,
     ) -> "VariationalGaussianProcessMulticlassDecoder":
