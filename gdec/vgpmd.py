@@ -52,11 +52,11 @@ class VGPMDModule(nn.Module):
         self.register_buffer("n_classes", torch.tensor(n_classes))
         self.register_buffer("n_samples", torch.tensor(n_samples))
         self.log_amplitudes = nn.Parameter(
-            torch.full((n_dim,), math.log(8.0)), requires_grad=True
+            torch.full((n_dim,), math.log(32.0)), requires_grad=True
         )
         self.unconstrained_lengthscales = nn.Parameter(
             torch.full(
-                (n_dim,), interval_to_real(0.055 * n_classes, low=0.01, high=n_classes)
+                (n_dim,), interval_to_real(0.005 * n_classes, low=0.01, high=n_classes)
             ),
             requires_grad=True,
         )
@@ -64,7 +64,7 @@ class VGPMDModule(nn.Module):
         # Variational posterior parameters, for torchgp-domain weights
         self.q_mean = nn.Parameter(torch.zeros((n_classes, n_dim)), requires_grad=True)
         self.log_q_scale = nn.Parameter(
-            torch.full((n_classes, n_dim), math.log(1.0e-5)), requires_grad=True
+            torch.full((n_classes, n_dim), math.log(1.0e-6)), requires_grad=True
         )
 
         basis, freqs = torchgp.real_fourier_basis(n_classes)
@@ -174,11 +174,10 @@ class NegativeELBO(nn.Module):
 def fit_tuning_curve_matrix(
     X: np.ndarray,
     y: np.ndarray,
-    lr: float = 1.0e-3,
-    max_steps: int = 20000,
-    n_samples: int = 1,
-    validate_every: int = 32,
-    patience: int = 32,
+    lr: float = 0.01,
+    max_steps: int = 4096,
+    n_samples: int = 4,
+    log_every: int = 32,
     cuda: bool = True,
     cuda_device: int = 0,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -188,71 +187,36 @@ def fit_tuning_curve_matrix(
         device = torch.device("cpu")
 
     n_classes = np.unique(y).size
-
-    # Choose stratified shuffle split if we have enough data, otherwise use regular
-    test_size = 0.15
-    if int(test_size * y.size) < n_classes:
-        splits = model_selection.ShuffleSplit(n_splits=1, test_size=test_size)
-    else:
-        splits = model_selection.StratifiedShuffleSplit(n_splits=1, test_size=test_size)
-
-    train_indices, test_indices = next(iter(splits.split(X, y)))
-    X_train = torch.tensor(X[train_indices]).to(device)
-    y_train = torch.tensor(y[train_indices]).to(device)
-    X_test = torch.tensor(X[test_indices]).to(device)
-    y_test = torch.tensor(y[test_indices]).to(device)
-
-    model = VGPMDModule(
-        n_dim=X_train.shape[1], n_classes=n_classes, n_samples=n_samples
-    ).to(device)
-    best_model = VGPMDModule(
-        n_dim=X_train.shape[1], n_classes=n_classes, n_samples=n_samples
-    ).to(device)
-    loss_fn = NegativeELBO(n_data=X_train.shape[0]).to(device)
+    X = torch.tensor(X).to(device)
+    y = torch.tensor(y).to(device)
+    model = VGPMDModule(n_dim=X.shape[1], n_classes=n_classes, n_samples=n_samples).to(
+        device
+    )
+    loss_fn = NegativeELBO(n_data=X.shape[0]).to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr, amsgrad=True)
+    patience = 32
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=patience)
 
-    def validate(model: nn.Module, step: int) -> float:
-        with torch.no_grad():
-            y_pred_probs = model(X_test)[0]
-        y_pred = torch.argmax(y_pred_probs, dim=1).cpu().numpy()
-        y_true = y_test.cpu().numpy()
-        return utils.mean_abs_err(y_pred, y_true, n_classes)
-
-    epochs_without_improvement = 0
-    best_val_loss = float("inf")
     for step in range(max_steps):
         optimizer.zero_grad()
-        y_pred = model(X_train)
-        loss = loss_fn(y_pred, y_train)
+        y_pred = model(X)
+        loss = loss_fn(y_pred, y)
         loss.backward()
-        if torch.isnan(model.unconstrained_lengthscales.grad).any():
-            logging.debug(model.unconstrained_lengthscales.grad)
-            import pdb
-
-            pdb.set_trace()
         optimizer.step()
 
-        if step % validate_every == 0:
-            val_loss = validate(model, step)
-            logging.info("Step %d, test mae: %.2f, ELBO %.2f", step, val_loss, loss)
-            if val_loss < best_val_loss:
-                best_model.load_state_dict(model.state_dict())
-                best_val_loss = val_loss
-                epochs_without_improvement = 0
-            else:
-                epochs_without_improvement += 1
+        if step > 512:
+            scheduler.step(loss)
+            if (torch.tensor(scheduler._last_lr) <= scheduler.eps).all():
+                break
 
-        if epochs_without_improvement >= patience:
-            logging.info(
-                "%d validations without improvement, using best so far", patience
-            )
-            break
+        if step % log_every == 0:
+            logging.info("Step %d, ELBO %.2f", step, loss)
 
     with torch.no_grad():
-        freq_coefs = best_model.coefs()
-        coefs = best_model.basis @ freq_coefs  # type: ignore
-        amplitudes = best_model.amplitudes()
-        lengthscales = best_model.lengthscales()
+        freq_coefs = model.coefs()
+        coefs = model.basis @ freq_coefs  # type: ignore
+        amplitudes = model.amplitudes()
+        lengthscales = model.lengthscales()
 
     return freq_coefs.cpu(), coefs.cpu(), amplitudes.cpu(), lengthscales.cpu()
 
@@ -266,11 +230,10 @@ class VariationalGaussianProcessMulticlassDecoder(
         self,
         X: np.ndarray,
         y: np.ndarray,
-        lr: float = 1.0e-3,
-        max_steps: int = 20000,
-        n_samples: int = 1,
-        validate_every: int = 32,
-        patience: int = 32,
+        lr: float = 0.01,
+        max_steps: int = 4096,
+        n_samples: int = 4,
+        log_every: int = 32,
         cuda: bool = True,
         cuda_device: int = 0,
     ) -> "VariationalGaussianProcessMulticlassDecoder":
@@ -286,15 +249,7 @@ class VariationalGaussianProcessMulticlassDecoder(
             amplitudes,
             lengthscales,
         ) = fit_tuning_curve_matrix(
-            self.X_,
-            self.y_,
-            lr,
-            max_steps,
-            n_samples,
-            validate_every,
-            patience,
-            cuda,
-            cuda_device,
+            self.X_, self.y_, lr, max_steps, n_samples, log_every, cuda, cuda_device,
         )
         self.amplitudes_ = amplitudes.numpy()
         self.lengthscales_ = lengthscales.numpy()
