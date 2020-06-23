@@ -32,11 +32,11 @@ def real_to_interval(x: torch.Tensor, low: float, high: float) -> torch.Tensor:
 
 def prune(spectrum: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Prunes the spectrum and its associated matrices."""
-    condition_thresh = 1e6
+    condition_thresh = 1e16
     spectrum_thresh = torch.max(torch.abs(spectrum ** 2)) / condition_thresh
     mask = torch.nonzero(
         (torch.abs(spectrum ** 2) <= spectrum_thresh)
-        & (torch.abs(spectrum ** 2) <= 1e-32),
+        & (torch.abs(spectrum ** 2) <= 1e-64),
         as_tuple=True,
     )
     spectrum[mask] = 0
@@ -52,19 +52,20 @@ class VGPMDModule(nn.Module):
         self.register_buffer("n_classes", torch.tensor(n_classes))
         self.register_buffer("n_samples", torch.tensor(n_samples))
         self.log_amplitudes = nn.Parameter(
-            torch.full((n_dim,), math.log(32.0)), requires_grad=True
+            torch.full((n_dim,), math.log(0.01)), requires_grad=True
         )
         self.unconstrained_lengthscales = nn.Parameter(
             torch.full(
-                (n_dim,), interval_to_real(0.005 * n_classes, low=0.01, high=n_classes)
+                (n_dim,), interval_to_real(0.055 * n_classes, low=0.01, high=n_classes)
             ),
             requires_grad=True,
         )
 
         # Variational posterior parameters, for torchgp-domain weights
-        self.q_mean = nn.Parameter(torch.zeros((n_classes, n_dim)), requires_grad=True)
+        self.q_mean = nn.Parameter(torch.empty((n_classes, n_dim)), requires_grad=True)
+        nn.init.xavier_normal_(self.q_mean)
         self.log_q_scale = nn.Parameter(
-            torch.full((n_classes, n_dim), math.log(1.0e-6)), requires_grad=True
+            torch.full((n_classes, n_dim), math.log(1.0e-5)), requires_grad=True
         )
 
         basis, freqs = torchgp.real_fourier_basis(n_classes)
@@ -174,7 +175,7 @@ class NegativeELBO(nn.Module):
 def fit_tuning_curve_matrix(
     X: np.ndarray,
     y: np.ndarray,
-    lr: float = 0.01,
+    lr: float = 0.1,
     max_steps: int = 4096,
     n_samples: int = 4,
     log_every: int = 32,
@@ -193,9 +194,21 @@ def fit_tuning_curve_matrix(
         device
     )
     loss_fn = NegativeELBO(n_data=X.shape[0]).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=lr, amsgrad=True)
+    optimizer = optim.Adam(
+        (
+            {
+                "params": (model.log_amplitudes, model.unconstrained_lengthscales),
+                "lr": 1.0 * lr,
+            },
+            {"params": (model.q_mean, model.log_q_scale)},
+        ),
+        lr=lr,
+        amsgrad=True,
+    )
     patience = 32
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=patience)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, patience=patience, verbose=True, cooldown=256
+    )
 
     for step in range(max_steps):
         optimizer.zero_grad()
@@ -230,7 +243,7 @@ class VariationalGaussianProcessMulticlassDecoder(
         self,
         X: np.ndarray,
         y: np.ndarray,
-        lr: float = 0.01,
+        lr: float = 0.1,
         max_steps: int = 4096,
         n_samples: int = 4,
         log_every: int = 32,
