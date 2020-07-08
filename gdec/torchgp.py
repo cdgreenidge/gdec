@@ -80,7 +80,7 @@ def matern_spectrum(
     w: torch.Tensor,
     amplitudes: torch.Tensor,
     lengthscales: torch.Tensor,
-    nu: float = 2.5,
+    nu: float = 1.5,
 ) -> torch.Tensor:
     """Evaluate the Matern 5/2 power spectrum element-wise at ``w``.
 

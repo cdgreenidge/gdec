@@ -9,7 +9,7 @@ channels:
 dependencies:
   - conda-build
   - pip
-  - python=3.6.8
+  - python
 
   # Package dependencies
   - numpy
@@ -19,12 +19,13 @@ dependencies:
   - scikit-learn
 
   # Executable dependencies
-  - altair
+  - colorcet
   - ipykernel
   - ipywidgets
   - matplotlib
   - pandas
   - plotly
+  - tqdm
 
   # Development dependencies
   - black
@@ -40,6 +41,6 @@ dependencies:
   - pytest
 
   - pip:
-      # - jax
-      # - jaxlib
+    - jax
+    - jaxlib
     - flake8-bugbear

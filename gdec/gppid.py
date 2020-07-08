@@ -78,15 +78,15 @@ def loss_hess(
 
 
 def fit_latent(
-    x: np.ndarray, y: np.ndarray, amplitude: np.ndarray, lengthscale: np.ndarray
+    x: np.ndarray, y: np.ndarray, c: np.ndarray, d: np.ndarray
 ) -> Tuple[optimize.OptimizeResult, np.ndarray]:
     """Fit the latent function for the GP model with exp-Pois likelihood.
 
     Args:
         x: The integer-valued x-locations of the data, of shape `(n, )`.
         y: The spike counts (responses), of shape `(n, )`.
-        amplitude: The amplitude of the prior.
-        lengthscale: The lengthscale of the prior.
+        c: The first kernel parameter.
+        lengthscale: The second kernel parameter.
 
     Returns:
         The SciPy optimization result object for the coefficients, and the whitened
@@ -95,7 +95,7 @@ def fit_latent(
     """
     n_classes = np.unique(x).size
     basis, spectrum_freqs = npgp.real_fourier_basis(n_classes)
-    spectrum = npgp.rbf_spectrum(spectrum_freqs, amplitude, lengthscale)
+    spectrum = npgp.rbf_spectrum(spectrum_freqs, c, d)
     basis = basis * np.sqrt(spectrum[None, :])  # Whiten the basis
 
     condition_thresh = 1e8
@@ -109,30 +109,11 @@ def fit_latent(
         loss,
         initial_coefs,
         args=(x, y, basis),
-        method="trust-exact",
+        method="trust-ncg",
         jac=loss_grad,
         hess=loss_hess,
     )
     return (results, basis)
-
-
-def lengthscale_transform(x: np.ndarray) -> np.ndarray:
-    """Transform the real line to the interval [0.01, 0.9]."""
-    lengthscale_min = 0.001
-    lengthscale_max = 0.999
-    return (lengthscale_max - lengthscale_min) * (
-        0.5 * np.tanh(x) + 0.5
-    ) + lengthscale_min
-
-
-def inv_lengthscale_transform(x: np.ndarray) -> np.ndarray:
-    """Transform the interval [0.01, 0.9] to the real line."""
-    lengthscale_min = 0.001
-    lengthscale_max = 0.999
-    neg_1_to_1 = 2 * (
-        ((x - lengthscale_min) / (lengthscale_max - lengthscale_min)) - 0.5
-    )
-    return np.arctanh(neg_1_to_1)
 
 
 def neg_log_laplace_evidence(
@@ -150,9 +131,9 @@ def neg_log_laplace_evidence(
         The approximate negative log evidence.
 
     """
-    amplitude = np.exp(unconstrained_hyperparams[0])
-    lengthscale = lengthscale_transform(unconstrained_hyperparams[1])
-    results = fit_latent(x, y, amplitude, lengthscale)[0]
+    results = fit_latent(
+        x, y, unconstrained_hyperparams[0], unconstrained_hyperparams[1]
+    )[0]
     return -(-results.fun - 0.5 * np.linalg.slogdet(results.hess)[1])
 
 
@@ -174,17 +155,16 @@ def fit_hyperparams(
         The amplitude and lengthscale estimated to maximize the log evidence.
 
     """
+    c_init, d_init = npgp.rbf_natural_to_unconstrained(
+        initial_amplitude, initial_lengthscale
+    )
     results = optimize.minimize(
         neg_log_laplace_evidence,
-        np.array(
-            [np.log(initial_amplitude), inv_lengthscale_transform(initial_lengthscale)]
-        ),
+        np.array([c_init, d_init]),
         args=(x, y),
         method="Nelder-Mead",
     )
-    est_amplitude = np.exp(results.x[0])
-    est_lengthscale = lengthscale_transform(results.x[1])
-    return est_amplitude, est_lengthscale
+    return results.x[0], results.x[1]
 
 
 def smooth_curve(x: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, float, float]:
@@ -199,8 +179,9 @@ def smooth_curve(x: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, float, float
         amplitude and lengthscale of the latent prior.
 
     """
-    est_amplitude, est_lengthscale = fit_hyperparams(x, y)
-    results, basis = fit_latent(x, y, est_amplitude, est_lengthscale)
+    est_c, est_d = fit_hyperparams(x, y)
+    est_amplitude, est_lengthscale = npgp.rbf_unconstrained_to_natural(est_c, est_d)
+    results, basis = fit_latent(x, y, est_c, est_d)
     log_f_curve_est = basis @ results.x
     return log_f_curve_est, est_amplitude, est_lengthscale
 

@@ -46,7 +46,8 @@ def param_pushforward(theta: np.ndarray) -> np.ndarray:
     noises = theta[:, 0]
     amps = theta[:, 1]
     lens = theta[:, 2]
-    out = np.array([noises, np.log(amps ** 2 * lens), np.log(lens ** 2)]).T
+    cs, ds = npgp.rbf_natural_to_unconstrained(amps, lens)
+    out = np.array([noises, cs, ds]).T
     return np.squeeze(out)
 
 
@@ -101,8 +102,11 @@ def prune(
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Prunes the spectrum and its associated matrices."""
     condition_thresh = 1e6
+    spectrum[np.isnan(spectrum)] = 0
     spectrum_thresh = np.max(np.abs(spectrum)) / condition_thresh
-    (mask,) = np.nonzero(np.abs(spectrum) > spectrum_thresh)
+    (mask,) = np.nonzero(
+        np.logical_and(np.abs(spectrum) > spectrum_thresh, np.abs(spectrum) > 1e-32)
+    )
     spectrum_freqs = spectrum_freqs[mask]
     spectrum = spectrum[mask]
     phixphix = phixphix[mask, :][:, mask]
@@ -182,9 +186,9 @@ def nll_grad(
     Ainv_diag = 1 / A_diag
     Ainvb = Ainv_diag * b
 
-    drhoK_diag = npgp.rbf_spectrum_dr(spectrum_freqs, amplitude, lengthscale)
+    drhoK_diag = npgp.rbf_spectrum_dc(spectrum_freqs, amplitude, lengthscale)
     drhoA_diag = -Kinv2_diag * drhoK_diag
-    dlK_diag = npgp.rbf_spectrum_dl(spectrum_freqs, amplitude, lengthscale)
+    dlK_diag = npgp.rbf_spectrum_dd(spectrum_freqs, amplitude, lengthscale)
     dlA_diag = -Kinv2_diag * dlK_diag
     dsigmaA_diag = -(2 / sigma ** 3) * phixphix_diag
     dsigmab = -(2 / sigma ** 3) * phixy
@@ -249,11 +253,11 @@ def nll_hess(
     dsigma2b = (6 / sigma ** 4) * phixy
     dsigmaAinvb = -Ainv_diag * (dsigmaA_diag * Ainvb - dsigmab)
 
-    drhoK_diag = npgp.rbf_spectrum_dr(spectrum_freqs, amplitude, lengthscale)
-    dlK_diag = npgp.rbf_spectrum_dl(spectrum_freqs, amplitude, lengthscale)
-    drhodrhoK_diag = npgp.rbf_spectrum_drdr(spectrum_freqs, amplitude, lengthscale)
-    dldlK_diag = npgp.rbf_spectrum_dldl(spectrum_freqs, amplitude, lengthscale)
-    dldrK_diag = npgp.rbf_spectrum_dldr(spectrum_freqs, amplitude, lengthscale)
+    drhoK_diag = npgp.rbf_spectrum_dc(spectrum_freqs, amplitude, lengthscale)
+    dlK_diag = npgp.rbf_spectrum_dd(spectrum_freqs, amplitude, lengthscale)
+    drhodrhoK_diag = npgp.rbf_spectrum_dcdc(spectrum_freqs, amplitude, lengthscale)
+    dldlK_diag = npgp.rbf_spectrum_dddd(spectrum_freqs, amplitude, lengthscale)
+    dldrK_diag = npgp.rbf_spectrum_dcdd(spectrum_freqs, amplitude, lengthscale)
 
     drhoA_diag = -drhoK_diag * Kinv2_diag
     dlA_diag = -dlK_diag * Kinv2_diag
@@ -336,17 +340,6 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
 
     """
 
-    def __init__(
-        self,
-        n_classes,
-        noise_initial=1.0,
-        amplitude_initial=1.0,
-        lengthscale_initial=0.5,
-    ):
-        self.noise_initial = noise_initial
-        self.amplitude_initial = amplitude_initial
-        self.lengthscale_initial = lengthscale_initial
-
     def fit(self, X, y, grid_size: int = None):
         """Fit the Gaussian process regression.
 
@@ -402,7 +395,11 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         )
         trho_range = _grid_range(trho_min, trho_max, n_points)
         trhos = np.linspace(*trho_range, n_points)
-        theta_0s = useful.product(noises, trhos, np.log(lengthscales ** 2))
+        rhos = np.sqrt(np.exp(trhos) / lengthscales)
+
+        cs, ds = npgp.rbf_natural_to_unconstrained(rhos, lengthscales)
+
+        theta_0s = useful.product(noises, cs, ds)
 
         losses = []
         for i in theta_0s:
@@ -411,30 +408,27 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
         self.theta_0_ = theta_0s[np.argmin(losses)]
 
         # Fit hyperparameters
-        def minimize_loss(
-            noise_initial, amplitude_initial, lengthscale_initial
-        ) -> optimize.OptimizeResult:
+        def minimize_loss() -> optimize.OptimizeResult:
             args = (self.sstats_, self.spectrum_freqs_)
             return optimize.minimize(
                 lambda theta: nll(theta, *args),
                 self.theta_0_,
-                method="trust-exact",
+                method="trust-ncg",
                 jac=lambda theta: nll_grad(theta, *args),
                 hess=lambda theta: nll_hess(theta, *args),
-                options={"gtol": 1.0e-34},
+                # Setting max_trust_radius prevents overflow of the log-domain
+                # parameters
+                options={"max_trust_radius": 32.0},
             )
 
-        results = minimize_loss(
-            self.noise_initial, self.amplitude_initial, self.lengthscale_initial
+        results = minimize_loss()
+        self.noise_, self.c_, self.d_ = results.x
+        self.amplitude_, self.lengthscale_ = npgp.rbf_unconstrained_to_natural(
+            self.c_, self.d_
         )
-        self.noise_, self.log_rho_tilde_, self.log_lengthscale_ = results.x
-        self.lengthscale_ = np.sqrt(np.exp(self.log_lengthscale_))
-        self.amplitude_ = np.sqrt(np.exp(self.log_rho_tilde_) / self.lengthscale_)
 
         # Fit latent function with MAP estimate
-        spectrum = npgp.rbf_spectrum(
-            self.spectrum_freqs_, self.log_rho_tilde_, self.log_lengthscale_
-        )
+        spectrum = npgp.rbf_spectrum(self.spectrum_freqs_, self.c_, self.d_)
         whitened_basis = np.sqrt(spectrum)[None, :] * basis
         self.f_, self.f_var_ = map_estimate(x, y, whitened_basis, self.noise_)
 
