@@ -89,6 +89,11 @@ class GPGaussianIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
 
         Returns:
             self, an object.
+            mean = self.coefs_[i]
+            log_prior = np.log(self.class_prior_[i])
+            joint_log_likelihood[i, :] = (
+                stats.norm.logpdf(X, mean, self.noises_).sum(axis=1) + log_prior
+            )
 
         """
         X, y = sklearn.utils.check_X_y(X, y)
