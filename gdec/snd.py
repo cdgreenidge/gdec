@@ -52,7 +52,7 @@ class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixi
             y: An array of shape ``(n_samples, )`` containing the training labels.
 
         """
-        linreg = linear_model.RidgeRegression(alpha=1.0)
+        linreg = linear_model.Ridge(alpha=1.0)
         linreg.fit(X, to_linear_targets(y))
         self.coefs_ = linreg.coef_
         self.intercept_ = linreg.intercept_
