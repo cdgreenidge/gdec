@@ -6,7 +6,7 @@ Coding in Mouse Visual Cortex.” bioRxiv. https://doi.org/10.1101/679324.
 """
 import numpy as np
 import sklearn
-from sklearn import linear_model
+from sklearn import linear_model, preprocessing
 
 from gdec import useful
 
@@ -43,7 +43,7 @@ class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixi
         intercept_: When fitted, the intercept vector, of shape ``(n_classes, )``.
     """
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
+    def fit(self, X: np.ndarray, y: np.ndarray, alpha: float = 1.0) -> None:
         """Fit the SND.
 
         Args:
@@ -52,7 +52,8 @@ class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixi
             y: An array of shape ``(n_samples, )`` containing the training labels.
 
         """
-        linreg = linear_model.Ridge(alpha=1.0)
+        self.scaler_ = preprocessing.StandardScaler()
+        linreg = linear_model.Ridge(alpha=alpha, normalize=True)
         linreg.fit(X, to_linear_targets(y))
         self.coefs_ = linreg.coef_
         self.intercept_ = linreg.intercept_
