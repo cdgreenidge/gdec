@@ -7,9 +7,29 @@ import sklearn.naive_bayes
 import tqdm
 from scipy import optimize, stats
 
-from gdec import npgp
+from gdec import npgp, useful
 
 logger = logging.getLogger(__name__)
+
+
+
+def _grid_range(low: float, hi: float, ngrid: int) -> Tuple[float, float]:
+    """Calculate a grid range according to Jonathan's code.
+
+    For some reason his code doesn't evaluate on the grid endpoints.
+
+    Args:
+        low: The low end of the range.
+        hi: The high end of the range.
+
+    Returns:
+        The range along which to calculate the grid points.
+
+    """
+    len_ = hi - low
+    offset = len_ / (2 * ngrid)
+    return low + offset, hi - offset
+
 
 
 def loss(
@@ -155,12 +175,45 @@ def fit_hyperparams(
         The amplitude and lengthscale estimated to maximize the log evidence.
 
     """
-    c_init, d_init = npgp.rbf_natural_to_unconstrained(
-        initial_amplitude, initial_lengthscale
+    # Do an initial grid search
+    n_points = 4
+    yy = y @ y
+    n_samples = y.size
+    y_var = yy / n_samples  # We assume that y is centered
+
+    log_amplitude2_lower = np.log(min(1, y_var * 0.05))
+    log_amplitude2_upper = np.log(y_var)
+
+    log_lengthscale_min = np.log(0.1)
+    log_lengthscale_max = np.log(np.ptp(x) / 2)
+    log_lengthscale_range = _grid_range(
+        log_lengthscale_min, log_lengthscale_max, n_points
     )
+    lengthscales = np.exp(np.linspace(*log_lengthscale_range, n_points))
+
+    trho_min = log_amplitude2_lower + np.log(
+        np.sqrt(2 * np.pi) * np.exp(log_lengthscale_min)
+    )
+    trho_max = log_amplitude2_upper + np.log(
+        np.sqrt(2 * np.pi) * np.exp(log_lengthscale_max)
+    )
+    trho_range = _grid_range(trho_min, trho_max, n_points)
+    trhos = np.linspace(*trho_range, n_points)
+    rhos = np.sqrt(np.exp(trhos) / lengthscales)
+
+    cs, ds = npgp.rbf_natural_to_unconstrained(rhos, lengthscales)
+
+    theta_0s = useful.product(cs, ds)
+
+    losses = []
+    for i in theta_0s:
+        losses.append(neg_log_laplace_evidence(i, x, y))
+
+    theta_0_ = theta_0s[np.argmin(losses)]
+
     results = optimize.minimize(
         neg_log_laplace_evidence,
-        np.array([c_init, d_init]),
+        theta_0_,
         args=(x, y),
         method="Nelder-Mead",
     )
