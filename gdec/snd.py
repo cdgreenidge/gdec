@@ -6,7 +6,7 @@ Coding in Mouse Visual Cortex.” bioRxiv. https://doi.org/10.1101/679324.
 """
 import numpy as np
 import sklearn
-from sklearn import linear_model, preprocessing
+from sklearn import preprocessing
 
 from gdec import useful
 
@@ -35,6 +35,32 @@ def to_linear_targets(y: np.ndarray) -> np.ndarray:
     return targets / np.max(targets, axis=0)  # Normalize
 
 
+def fast_ridge(X: np.ndarray, y: np.ndarray, lam: float = 1.0) -> np.ndarray:
+    """Fast ridge regression, the original fast_ridge code from Stringer et. al.
+
+    Args:
+        X: A matrix of shape (n_examples, n_features).
+        y: a vector of shape (n_examples, n_targets).
+
+    Returns:
+        A coefficient matrix of shape (n_features, n_targets).
+
+    """
+    X = X.T
+    # We add the above line because Stringer et. al's code uses a matrix with
+    # (n_features, n_examples) layout
+
+    N, M = X.shape
+    lam = lam * M
+    if N < M:
+        XXt = X @ X.T
+        w = np.linalg.solve(XXt + lam * np.eye(N), X @ y)
+    else:
+        XtX = X.T @ X
+        w = 1 / lam * X @ (y - np.linalg.solve(lam * np.eye(M) + XtX, XtX @ y))
+    return w
+
+
 class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixin):
     """Super neuron decoder.
 
@@ -52,11 +78,13 @@ class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixi
             y: An array of shape ``(n_samples, )`` containing the training labels.
 
         """
-        self.scaler_ = preprocessing.StandardScaler()
-        linreg = linear_model.Ridge(alpha=alpha, normalize=True)
-        linreg.fit(X, to_linear_targets(y))
-        self.coefs_ = linreg.coef_
-        self.intercept_ = linreg.intercept_
+        X = preprocessing.scale(X.astype(np.float64), axis=0)
+        X = np.append(X, np.ones((len(X), 1)), axis=1)
+        # linreg = linear_model.Ridge(alpha=alpha, normalize=False)
+        # linreg.fit(X, to_linear_targets(y))
+        W = fast_ridge(X, to_linear_targets(y)).T
+        self.coefs_ = W[:, :-1]
+        self.intercept_ = W[:, -1]
 
     def _predict_log_probs(self, X: np.ndarray) -> np.ndarray:
         sklearn.utils.validation.check_is_fitted(self)

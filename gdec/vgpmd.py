@@ -12,7 +12,7 @@ import torch.distributions as dist
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from sklearn import model_selection
+from sklearn import model_selection, preprocessing
 
 from gdec import torchgp, utils
 
@@ -252,6 +252,11 @@ class VariationalGaussianProcessMulticlassDecoder(
     ) -> "VariationalGaussianProcessMulticlassDecoder":
         """Fit the estimator."""
         X, y = sklearn.utils.validation.check_X_y(X, y)
+
+        # Preprocess
+        X = preprocessing.scale(X.astype(np.float64), axis=1, with_std=False)
+        X = preprocessing.normalize(X)
+
         self.classes_ = sklearn.utils.multiclass.unique_labels(y)
         self.X_ = X.astype(np.float32)
         self.y_ = y
