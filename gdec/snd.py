@@ -6,6 +6,7 @@ Coding in Mouse Visual Cortex.” bioRxiv. https://doi.org/10.1101/679324.
 """
 import numpy as np
 import sklearn
+from scipy import stats
 from sklearn import preprocessing
 
 from gdec import useful
@@ -79,17 +80,15 @@ class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixi
 
         """
         X = preprocessing.scale(X.astype(np.float64), axis=0)
-        X = np.append(X, np.ones((len(X), 1)), axis=1)
-        # linreg = linear_model.Ridge(alpha=alpha, normalize=False)
-        # linreg.fit(X, to_linear_targets(y))
-        W = fast_ridge(X, to_linear_targets(y)).T
-        self.coefs_ = W[:, :-1]
-        self.intercept_ = W[:, -1]
+        y = to_linear_targets(y)
+        # No idea why zscore is necessary, but it's in Stringer's code
+        y = stats.zscore(y, axis=1)
+        self.coefs_ = fast_ridge(X, y).T
 
     def _predict_log_probs(self, X: np.ndarray) -> np.ndarray:
         sklearn.utils.validation.check_is_fitted(self)
         X = sklearn.utils.validation.check_array(X)
-        scores = X @ self.coefs_.T + self.intercept_[None, :]
+        scores = X @ self.coefs_.T
         return useful.log_softmax(scores, axis=-1)
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
