@@ -33,8 +33,9 @@ def dataset() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
 def test_you_can_train_periodic_gp_regression_on_the_synthetic_dataset(dataset):
     X, y, z, f = dataset
-    model = gpreg.PeriodicGPRegression(n_classes=np.unique(X).size)
-    model.fit(X, y)
+    grid_size = np.unique(X).size
+    model = gpreg.PeriodicGPRegression()
+    model.fit(X, y, grid_size=grid_size)
     f_est = model.predict(z)
     error = np.max(np.abs(f - f_est))
     assert error < 0.3
@@ -43,6 +44,7 @@ def test_you_can_train_periodic_gp_regression_on_the_synthetic_dataset(dataset):
 def test_training_pid_on_float_dataset_raises_value_error(dataset):
     X, y, _, _ = dataset
     X = X.astype(np.float32)
-    model = gpreg.PeriodicGPRegression(n_classes=np.unique(X).size)
+    grid_size = np.unique(X).size
+    model = gpreg.PeriodicGPRegression()
     with pytest.raises(ValueError):
-        model.fit(X, y)
+        model.fit(X, y, grid_size=grid_size)
