@@ -261,7 +261,7 @@ def tuning_curve_matrix(
     logger.info("Smoothing tuning curves...")
     for i in tqdm.tqdm(range(X.shape[1]), disable=not verbose):
         log_curve, amplitude, lengthscale = smooth_curve(y, X[:, i])
-        curves.append(np.exp(log_curve))
+        curves.append(log_curve)
         amplitudes.append(amplitude)
         lengthscales.append(lengthscale)
 
@@ -287,7 +287,7 @@ class GPPoissonIndependentDecoder(sklearn.naive_bayes._BaseDiscreteNB):
 
         joint_log_likelihood = np.zeros((len(self.classes_), X.shape[0]))
         for i in range(len(self.classes_)):
-            mean = self.coefs_[i]
+            mean = np.exp(self.coefs_[i])
             log_prior = np.log(self.class_prior_[i])
             joint_log_likelihood[i, :] = (
                 stats.poisson.logpmf(X, mean).sum(axis=1) + log_prior
