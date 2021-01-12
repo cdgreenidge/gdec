@@ -11,6 +11,20 @@ import numpy as np
 from scipy import special
 
 
+def add_intercept_feature_col(X: np.ndarray) -> np.ndarray:
+    """Add an intercept column to a (n_examples, n_features) data matrix.
+
+    Args:
+        X: The input array, of shape (n_examples, n_features)
+
+    Returns:
+        X, but with a column of ones prepended, so that it is of shape
+        (n_examples, n_features + 1)
+
+    """
+    return np.insert(X, 0, 1.0, axis=1)
+
+
 def log_softmax(a: np.ndarray, axis: Optional[int] = None) -> np.ndarray:
     """Compute the log softmax of an array.
 

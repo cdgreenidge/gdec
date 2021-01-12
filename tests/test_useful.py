@@ -25,6 +25,21 @@ def array_and_axis(draw):
     return array, axis
 
 
+@hypothesis.given(
+    numpy.arrays(
+        float,
+        numpy.array_shapes(min_dims=2, max_dims=2),
+        elements=strategies.floats(
+            min_value=1e9, max_value=1e9, allow_nan=False, allow_infinity=False
+        ),
+    )
+)
+def test_add_intercept_feature_col_prepends_a_col_of_ones(X):
+    X1 = useful.add_intercept_feature_col(X)
+    np.testing.assert_array_almost_equal(X1[:, 0], 1)
+    np.testing.assert_array_almost_equal(X1[:, 1:], X)
+
+
 @hypothesis.given(array_and_axis())
 def test_log_softmax_normalizes_to_1_along_selected_axis(x):
     array, axis = x
