@@ -14,7 +14,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from sklearn import model_selection
 
-from gdec import torchgp, utils
+from gdec import torchgp, useful, utils
 
 
 def logit(x: float) -> float:
@@ -249,9 +249,13 @@ class VariationalGaussianProcessMulticlassDecoder(
         log_every: int = 32,
         cuda: bool = True,
         cuda_device: int = 0,
+        intercept: bool = False,
     ) -> "VariationalGaussianProcessMulticlassDecoder":
         """Fit the estimator."""
         X, y = sklearn.utils.validation.check_X_y(X, y)
+        self.intercept_ = intercept
+        if intercept:
+            X = useful.add_intercept_feature_col(X)
 
         self.classes_ = sklearn.utils.multiclass.unique_labels(y)
         self.X_ = X.astype(np.float32)
@@ -280,6 +284,8 @@ class VariationalGaussianProcessMulticlassDecoder(
         """Predict classes."""
         sklearn.utils.validation.check_is_fitted(self)
         X = sklearn.utils.validation.check_array(X)
+        if self.intercept_:
+            X = useful.add_intercept_feature_col(X)
         X = torch.tensor(X, dtype=torch.float32)
         log_probs = F.log_softmax(X @ self.coefs_t_.t(), dim=-1)
         classes = torch.argmax(log_probs, dim=-1)
