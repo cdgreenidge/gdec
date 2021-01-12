@@ -70,7 +70,7 @@ class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixi
         intercept_: When fitted, the intercept vector, of shape ``(n_classes, )``.
     """
 
-    def fit(self, X: np.ndarray, y: np.ndarray, alpha: float = 1.0) -> None:
+    def fit(self, X: np.ndarray, y: np.ndarray, intercept: bool = False) -> None:
         """Fit the SND.
 
         Args:
@@ -80,6 +80,9 @@ class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixi
 
         """
         X = preprocessing.scale(X.astype(np.float64), axis=0)
+        self.intercept_ = intercept
+        if intercept:
+            X = useful.add_intercept_feature_col(X)
         y = to_linear_targets(y)
         # No idea why zscore is necessary, but it's in Stringer's code
         y = stats.zscore(y, axis=1)
@@ -88,6 +91,8 @@ class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixi
     def _predict_log_probs(self, X: np.ndarray) -> np.ndarray:
         sklearn.utils.validation.check_is_fitted(self)
         X = sklearn.utils.validation.check_array(X)
+        if self.intercept_:
+            X = useful.add_intercept_feature_col(X)
         scores = X @ self.coefs_.T
         return useful.log_softmax(scores, axis=-1)
 
