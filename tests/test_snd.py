@@ -21,7 +21,7 @@ def test_you_can_train_the_snd_with_intercept():
     X_train, X_test, y_train, y_test = model_selection.train_test_split(
         X, y, train_size=0.8
     )
-    model = gdec.SuperNeuronDecoder()
-    model.fit(X_train, y_train, intercept=True)
+    model = gdec.SuperNeuronDecoder(affine=True)
+    model.fit(X_train, y_train)
     score = model.score(X_test, y_test)
     assert score > 1 / 32  # Better than random guessing?

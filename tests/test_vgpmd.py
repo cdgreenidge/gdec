@@ -34,5 +34,5 @@ def test_vgpmd_can_train_with_intercept(dataset):
     X_train, X_test, y_train, y_test = model_selection.train_test_split(
         X, y, train_size=0.8,
     )
-    model = gdec.VariationalGaussianProcessMulticlassDecoder()
-    model.fit(X_train, y_train, max_steps=128, intercept=True)
+    model = gdec.VariationalGaussianProcessMulticlassDecoder(affine=True)
+    model.fit(X_train, y_train, max_steps=128)

@@ -1,7 +1,7 @@
 """Variational Gaussian Process multiclass Decoder."""
 import logging
 import math
-from typing import Tuple
+from typing import Any, Tuple
 
 import numpy as np
 import sklearn.base
@@ -237,7 +237,16 @@ def fit_tuning_curve_matrix(
 class VariationalGaussianProcessMulticlassDecoder(
     sklearn.base.BaseEstimator, sklearn.base.ClassifierMixin
 ):
-    """Sklearn interface to VGPMD classifier."""
+    """Sklearn interface to VGPMD classifier.
+
+    Args:
+        affine: whether or not to include a linear intercept term.
+
+    """
+
+    def __init__(self, *args: Any, affine: bool = False, **kwargs: Any) -> None:
+        self.affine = affine
+        super().__init__(*args, **kwargs)
 
     def fit(
         self,
@@ -249,12 +258,10 @@ class VariationalGaussianProcessMulticlassDecoder(
         log_every: int = 32,
         cuda: bool = True,
         cuda_device: int = 0,
-        intercept: bool = False,
     ) -> "VariationalGaussianProcessMulticlassDecoder":
         """Fit the estimator."""
         X, y = sklearn.utils.validation.check_X_y(X, y)
-        self.intercept_ = intercept
-        if intercept:
+        if self.affine:
             X = useful.add_intercept_feature_col(X)
 
         self.classes_ = sklearn.utils.multiclass.unique_labels(y)
@@ -284,7 +291,7 @@ class VariationalGaussianProcessMulticlassDecoder(
         """Predict classes."""
         sklearn.utils.validation.check_is_fitted(self)
         X = sklearn.utils.validation.check_array(X)
-        if self.intercept_:
+        if self.affine:
             X = useful.add_intercept_feature_col(X)
         X = torch.tensor(X, dtype=torch.float32)
         log_probs = F.log_softmax(X @ self.coefs_t_.t(), dim=-1)

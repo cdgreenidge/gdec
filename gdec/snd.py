@@ -4,6 +4,8 @@ See Stringer, Carsen, Michalis Michaelos, and Marius Pachitariu. 2019. “High P
 Coding in Mouse Visual Cortex.” bioRxiv. https://doi.org/10.1101/679324.
 
 """
+from typing import Any
+
 import numpy as np
 import sklearn
 from scipy import stats
@@ -65,10 +67,18 @@ def fast_ridge(X: np.ndarray, y: np.ndarray, lam: float = 1.0) -> np.ndarray:
 class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixin):
     """Super neuron decoder.
 
+    Args:
+        affine: whether or not to include a linear intercept term.
+
     Attributes:
         coefs_: When fitted, the weight matrix, of shape ``(n_classes, n_features)``.
         intercept_: When fitted, the intercept vector, of shape ``(n_classes, )``.
+
     """
+
+    def __init__(self, *args: Any, affine: bool = False, **kwargs: Any) -> None:
+        self.affine = affine
+        super().__init__(*args, **kwargs)
 
     def fit(self, X: np.ndarray, y: np.ndarray, intercept: bool = False) -> None:
         """Fit the SND.
@@ -80,8 +90,7 @@ class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixi
 
         """
         X = preprocessing.scale(X.astype(np.float64), axis=0)
-        self.intercept_ = intercept
-        if intercept:
+        if self.affine:
             X = useful.add_intercept_feature_col(X)
         y = to_linear_targets(y)
         # No idea why zscore is necessary, but it's in Stringer's code
@@ -91,7 +100,7 @@ class SuperNeuronDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixi
     def _predict_log_probs(self, X: np.ndarray) -> np.ndarray:
         sklearn.utils.validation.check_is_fitted(self)
         X = sklearn.utils.validation.check_array(X)
-        if self.intercept_:
+        if self.affine:
             X = useful.add_intercept_feature_col(X)
         scores = X @ self.coefs_.T
         return useful.log_softmax(scores, axis=-1)
