@@ -1,6 +1,4 @@
 """Regularized multinomial logistic regression."""
-from typing import Any
-
 import numpy as np
 from sklearn import linear_model
 from sklearn import pipeline
@@ -15,7 +13,7 @@ class LogisticRegression(pipeline.Pipeline):
 
     """
 
-    def __init__(self) -> None:
+    def __init__(self, affine: bool = False) -> None:
         super().__init__(
             [
                 ("scaler", preprocessing.MaxAbsScaler(),),
@@ -26,6 +24,7 @@ class LogisticRegression(pipeline.Pipeline):
                         solver="lbfgs",
                         cv=3,
                         n_jobs=4,
+                        fit_intercept=affine,
                         multi_class="multinomial",
                     ),
                 ),
