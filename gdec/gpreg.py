@@ -428,7 +428,9 @@ class PeriodicGPRegression(sklearn.base.BaseEstimator):
             return optimize.minimize(
                 lambda theta: nll(theta, *args),
                 self.theta_0_,
-                method="trust-exact",
+                # trust-exact is faster but is brittle and sometimes fails on
+                # poorly-conditioned problems
+                method="trust-ncg",
                 jac=lambda theta: nll_grad(theta, *args),
                 hess=lambda theta: nll_hess(theta, *args),
                 # Setting max_trust_radius prevents overflow of the log-domain
