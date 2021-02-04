@@ -12,6 +12,7 @@ class LogisticRegression(pipeline.Pipeline):
     """
 
     def __init__(self, affine: bool = False) -> None:
+        self.affine = affine
         super().__init__(
             [
                 (
