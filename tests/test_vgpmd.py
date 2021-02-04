@@ -23,7 +23,10 @@ def test_you_can_train_the_vgpmd_on_the_synthetic_dataset(dataset):
     )
     model = gdec.VariationalGaussianProcessMulticlassDecoder()
     model.fit(X_train, y_train, max_steps=128)
-    score = model.score(X_test, y_test,)
+    score = model.score(
+        X_test,
+        y_test,
+    )
     assert score > 1 / 32  # Better than random guessing?
     assert model.amplitudes_.size == X.shape[1]
     assert model.lengthscales_.size == X.shape[1]
@@ -32,7 +35,9 @@ def test_you_can_train_the_vgpmd_on_the_synthetic_dataset(dataset):
 def test_vgpmd_can_train_with_intercept(dataset):
     X, y = dataset
     X_train, X_test, y_train, y_test = model_selection.train_test_split(
-        X, y, train_size=0.8,
+        X,
+        y,
+        train_size=0.8,
     )
     model = gdec.VariationalGaussianProcessMulticlassDecoder(affine=True)
     model.fit(X_train, y_train, max_steps=128)

@@ -12,7 +12,6 @@ from gdec import npgp, useful
 logger = logging.getLogger(__name__)
 
 
-
 def _grid_range(low: float, hi: float, ngrid: int) -> Tuple[float, float]:
     """Calculate a grid range according to Jonathan's code.
 
@@ -29,7 +28,6 @@ def _grid_range(low: float, hi: float, ngrid: int) -> Tuple[float, float]:
     len_ = hi - low
     offset = len_ / (2 * ngrid)
     return low + offset, hi - offset
-
 
 
 def loss(

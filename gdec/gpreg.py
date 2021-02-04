@@ -215,7 +215,6 @@ def nll_grad(
     return np.array([dsigma, drho, dl])
 
 
-
 def nll_hess(
     theta: np.ndarray, sstats: np.ndarray, spectrum_freqs: np.ndarray
 ) -> np.ndarray:
@@ -314,7 +313,6 @@ def nll_hess(
             [dsigmadl, dldr, dldl],
         ]
     )
-
 
 
 def map_estimate(

@@ -12,9 +12,8 @@ import torch.distributions as dist
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from sklearn import model_selection
 
-from gdec import torchgp, useful, utils
+from gdec import torchgp, useful
 
 
 def logit(x: float) -> float:
@@ -30,7 +29,7 @@ def real_to_interval(x: torch.Tensor, low: float, high: float) -> torch.Tensor:
     return (high - low) * torch.sigmoid(x) + low
 
 
-def prune(spectrum: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def prune(spectrum: torch.Tensor) -> torch.Tensor:
     """Prunes the spectrum and its associated matrices."""
     condition_thresh = 1e16
     spectrum_thresh = torch.max(torch.abs(spectrum ** 2)) / condition_thresh
@@ -219,7 +218,9 @@ def fit_tuning_curve_matrix(
 
         if step > 512:
             scheduler.step(loss)
-            if (torch.tensor(scheduler._last_lr) <= scheduler.eps).all():
+            last_lr = torch.tensor(scheduler._last_lr)  # type: ignore
+            eps = scheduler.eps  # type: ignore
+            if (last_lr <= eps).all():
                 break
 
         if step % log_every == 0:
@@ -274,7 +275,14 @@ class VariationalGaussianProcessMulticlassDecoder(
             amplitudes,
             lengthscales,
         ) = fit_tuning_curve_matrix(
-            self.X_, self.y_, lr, max_steps, n_samples, log_every, cuda, cuda_device,
+            self.X_,
+            self.y_,
+            lr,
+            max_steps,
+            n_samples,
+            log_every,
+            cuda,
+            cuda_device,
         )
         self.amplitudes_ = amplitudes.numpy()
         self.lengthscales_ = lengthscales.numpy()

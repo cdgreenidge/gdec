@@ -1,8 +1,6 @@
 """Regularized multinomial logistic regression."""
 import numpy as np
-from sklearn import linear_model
-from sklearn import pipeline
-from sklearn import preprocessing
+from sklearn import linear_model, pipeline, preprocessing
 
 
 class LogisticRegression(pipeline.Pipeline):
@@ -16,7 +14,10 @@ class LogisticRegression(pipeline.Pipeline):
     def __init__(self, affine: bool = False) -> None:
         super().__init__(
             [
-                ("scaler", preprocessing.MaxAbsScaler(),),
+                (
+                    "scaler",
+                    preprocessing.MaxAbsScaler(),
+                ),
                 (
                     "glmnet",
                     linear_model.LogisticRegressionCV(

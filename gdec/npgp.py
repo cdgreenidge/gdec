@@ -1,5 +1,4 @@
 """Gaussian process utilities for Numpy code."""
-import math
 from typing import Tuple
 
 import numpy as np
@@ -119,8 +118,8 @@ def rbf_spectrum(w: np.ndarray, c: np.ndarray, d: np.ndarray) -> np.ndarray:
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
             shape (n, ).
-        c: An unconstrained parameter representing g_a(c) = a = amplitude ** 2 * lengthscale,
-            can be batched with shape (r, ).
+        c: An unconstrained parameter representing
+            g_a(c) = a = amplitude ** 2 * lengthscale, can be batched with shape (r, ).
         d: An unconstrained parameter representing g_b(d) = b = lengthscale ** 2, can be
             batched with shape (r, )
 
@@ -137,8 +136,8 @@ def rbf_spectrum_dc(w: np.ndarray, c: np.ndarray, d: np.ndarray) -> np.ndarray:
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
             shape (n, ).
-        c: An unconstrained parameter representing g_a(c) = a = amplitude ** 2 * lengthscale,
-            can be batched with shape (r, ).
+        c: An unconstrained parameter representing
+            g_a(c) = a = amplitude ** 2 * lengthscale, can be batched with shape (r, ).
         d: An unconstrained parameter representing g_b(d) = b = lengthscale ** 2, can be
             batched with shape (r, )
 
@@ -155,8 +154,8 @@ def rbf_spectrum_dd(w: np.ndarray, c: np.ndarray, d: np.ndarray) -> np.ndarray:
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
             shape (n, ).
-        c: An unconstrained parameter representing g_a(c) = a = amplitude ** 2 * lengthscale,
-            can be batched with shape (r, ).
+        c: An unconstrained parameter representing
+            g_a(c) = a = amplitude ** 2 * lengthscale, can be batched with shape (r, ).
         d: An unconstrained parameter representing g_b(d) = b = lengthscale ** 2, can be
             batched with shape (r, ).
 
@@ -179,8 +178,8 @@ def rbf_spectrum_dcdc(w: np.ndarray, c: np.ndarray, d: np.ndarray) -> np.ndarray
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
             shape (n, ).
-        c: An unconstrained parameter representing g_a(c) = a = amplitude ** 2 * lengthscale,
-            can be batched with shape (r, ).
+        c: An unconstrained parameter representing
+            g_a(c) = a = amplitude ** 2 * lengthscale, can be batched with shape (r, ).
         d: An unconstrained parameter representing g_b(d) = b = lengthscale ** 2, can be
             batched with shape (r, )
 
@@ -197,8 +196,8 @@ def rbf_spectrum_dcdd(w: np.ndarray, c: np.ndarray, d: np.ndarray) -> np.ndarray
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
             shape (n, ).
-        c: An unconstrained parameter representing g_a(c) = a = amplitude ** 2 * lengthscale,
-            can be batched with shape (r, ).
+        c: An unconstrained parameter representing
+            g_a(c) = a = amplitude ** 2 * lengthscale, can be batched with shape (r, ).
         d: An unconstrained parameter representing g_b(d) = b = lengthscale ** 2, can be
             batched with shape (r, )
 
@@ -220,8 +219,8 @@ def rbf_spectrum_dddd(w: np.ndarray, c: np.ndarray, d: np.ndarray) -> np.ndarray
     Args:
         w: The (dimensionless) frequencies at which to evaluate the power spectrum, of
             shape (n, ).
-        c: An unconstrained parameter representing g_a(c) = a = amplitude ** 2 * lengthscale,
-            can be batched with shape (r, ).
+        c: An unconstrained parameter representing
+            g_a(c) = a = amplitude ** 2 * lengthscale, can be batched with shape (r, ).
         d: An unconstrained parameter representing g_b(d) = b = lengthscale ** 2, can be
             batched with shape (r, )
 
@@ -236,4 +235,3 @@ def rbf_spectrum_dddd(w: np.ndarray, c: np.ndarray, d: np.ndarray) -> np.ndarray
         * (-2 * np.pi ** 2 * w ** 2)
         * (g_b_dd(d) - 2 * np.pi ** 2 * w ** 2 * g_b_d(d) ** 2)
     )
-
