@@ -133,7 +133,7 @@ def eld_transform(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]
 class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.ClassifierMixin):
     """Empirical linear decoder."""
 
-    def fit(self, X: np.ndarray, y: np.ndarray, criterion="cross_entropy") -> None:
+    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
         """Fit the empirical linear decoder.
 
         Args:
@@ -163,19 +163,12 @@ class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.Classifier
             predictions = jnp.exp(self._log_probs(X_scaled, alpha)) @ self.classes_
             return (circdist(predictions, y, self.classes_.size) ** 2).sum()
 
-        if criterion == "cross_entropy":
-            loss = cross_entropy
-        elif criterion == "squared_circdist":
-            loss = squared_circdist
-        else:
-            raise ValueError(f"Unknown criterion {criterion}")
-
-        grad_loss = jax.jit(jax.grad(loss))
-        hess_loss = jax.jit(jax.hessian(loss))
+        grad_loss = jax.jit(jax.grad(cross_entropy))
+        hess_loss = jax.jit(jax.hessian(cross_entropy))
 
         alpha_0 = jnp.ones(self.coefs_.shape[0])
         opt_results = scipy.optimize.minimize(
-            loss, alpha_0, method="trust-ncg", jac=grad_loss, hess=hess_loss
+            cross_entropy, alpha_0, method="trust-ncg", jac=grad_loss, hess=hess_loss
         )
         if not opt_results.success:
             warnings.warn(opt_results.message, UserWarning)
@@ -231,4 +224,5 @@ class EmpiricalLinearDecoder(sklearn.base.BaseEstimator, sklearn.base.Classifier
         sklearn.utils.validation.check_is_fitted(self)
         X = sklearn.utils.validation.check_array(X)
         X_scaled = self.scaler_.transform(X)
-        return self.classes_[np.argmax(self._log_probs(X_scaled, self.alpha_), axis=1)]
+        indices = np.asarray(np.argmax(self._log_probs(X_scaled, self.alpha_), axis=1))
+        return self.classes_[indices]
