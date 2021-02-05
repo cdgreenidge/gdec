@@ -28,7 +28,7 @@ jobs:
       run: |
         flake8 gdec tests
     - name: Lint with mypy
-      if: runner.os =! 'Windows'  # For some reason mypy breaks on Windows
+      if: runner.os != 'Windows'  # For some reason mypy breaks on Windows
       run: |
         mypy gdec tests
     - name: Check imports with isort
