@@ -1,4 +1,4 @@
-name: Test (local)
+name: Upload to PyPi
 
 on: release
 
