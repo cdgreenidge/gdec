@@ -12,7 +12,7 @@ from gdec import synthetic
 
 @pytest.fixture(scope="module")
 def dataset() -> Tuple[np.ndarray, np.ndarray]:
-    return synthetic.generate_dataset(seed=1634, n_classes=32)
+    return synthetic.generate_dataset(seed=1634, n_classes=4)
 
 
 def test_you_can_train_glmnet_on_the_synthetic_dataset(dataset):
@@ -25,7 +25,7 @@ def test_you_can_train_glmnet_on_the_synthetic_dataset(dataset):
         warnings.simplefilter("ignore", exceptions.ConvergenceWarning)
         model.fit(X_train, y_train)
     score = model.score(X_test, y_test)
-    assert score > 1 / 32  # Better than random guessing?
+    assert score > 1 / 4  # Better than random guessing?
 
 
 def test_you_can_train_glmnet_with_an_intercept(dataset):
@@ -38,4 +38,4 @@ def test_you_can_train_glmnet_with_an_intercept(dataset):
         warnings.simplefilter("ignore", exceptions.ConvergenceWarning)
         model.fit(X_train, y_train)
     score = model.score(X_test, y_test)
-    assert score > 1 / 32  # Better than random guessing?
+    assert score > 1 / 4  # Better than random guessing?
