@@ -14,7 +14,6 @@ dependencies:
   # Package dependencies
   - numpy
   - pytorch
-  - gpytorch
   - scipy
   - scikit-learn
 
