@@ -1,0 +1,61 @@
+package:
+  name: gdec
+  version: "0.0.3"
+
+source:
+  path: "."
+
+build:
+  noarch: python
+
+requirements:
+  build:
+    - python>=3.6
+    - setuptools
+
+  run:
+    - jax
+    - jaxlib
+    - numpy
+    - python>=3.6
+    - pytorch
+    - scikit-learn
+    - scipy
+    - tqdm
+
+test:
+  imports:
+    - gdec
+
+  requires:
+    - black
+    - flake8
+    - flake8-blind-except
+    - flake8-bugbear
+    - flake8-builtins
+    - flake8-docstrings
+    - flake8-mutable
+    - hypothesis
+    - isort
+    - mypy
+    - pep8-naming
+    - pytest
+
+  source_files:
+    - gdec/*.py
+    - setup.cfg
+    - tests/*.py
+
+  commands:
+    - conda develop .
+    - flake8 gdec tests
+    # - mypy gdec tests  # For some reason this breaks--we rely on CI to run it for now
+    - isort --quiet --recursive --atomic --diff gdec tests
+    - black --diff --quiet gdec tests
+    - pytest -q -s
+
+about:
+  home: https://github.com/cdgreenidge/gdec
+  license: MIT
+  license_file: LICENSE.txt
+  summary: Linear decoders for angled grating stimuli
