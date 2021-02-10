@@ -1,4 +1,4 @@
-name: Test (PyPi)
+name: Test (conda)
 
 on:
   workflow_dispatch:
