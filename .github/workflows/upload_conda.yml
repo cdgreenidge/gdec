@@ -1,0 +1,28 @@
+name: Upload to Anaconda Cloud
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.x
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: '3.x'
+    - name: Install dependencies
+      run: |
+        conda install -y anaconda-client conda-build conda-verify
+    - name: Build package
+      run: |
+        mkdir -p ./build/conda
+        conda build -c pytorch -c conda-forge . --output-folder ./build/conda
+    - name: Upload package
+      run: >
+        anaconda -t ${{ secrets.GDEC_CONDA_TOKEN }} upload \
+          ./build/conda/noarch/gdec-*.bz2
