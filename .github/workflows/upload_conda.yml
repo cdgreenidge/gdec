@@ -21,8 +21,6 @@ jobs:
     - name: Build package
       run: |
         mkdir -p ./build/conda
-        conda build -c pytorch -c conda-forge . --output-folder ./build/conda
-    - name: Upload package
-      run: >
-        anaconda -t ${{ secrets.GDEC_CONDA_TOKEN }} upload \
-          ./build/conda/noarch/gdec-*.bz2
+        conda config --set anaconda_upload yes
+        conda build --token ${{ secrets.GDEC_CONDA_TOKEN }} -c pytorch -c conda-forge \
+          . --output-folder ./build/conda
