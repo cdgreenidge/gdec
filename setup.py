@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name="gdec",
-    version="0.0.3",
+    version="0.0.6",
     author="C. Daniel Greenidge",
     author_email="dev@danielgreenidge.com",
     description="Linear decoders for angled grating stimuli",
