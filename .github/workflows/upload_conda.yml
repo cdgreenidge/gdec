@@ -1,6 +1,7 @@
 name: Upload to Anaconda Cloud
 
 on:
+  workflow_dispatch:
   release:
     types: [published]
 
@@ -14,7 +15,6 @@ jobs:
       uses: conda-incubator/setup-miniconda@v2
       with:
         auto-update-conda: true
-        python-version: '3.x'
     - name: Install dependencies
       run: |
         conda install -y anaconda-client conda-build conda-verify
