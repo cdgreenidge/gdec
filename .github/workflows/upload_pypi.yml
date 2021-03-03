@@ -22,5 +22,5 @@ jobs:
         python3 -m build
     - name: Upload package
       run: >
-        python3 -m twine upload --repository testpypi -u __token__
-        -p ${{ secrets.TEST_PYPI_TOKEN }} dist/*
+        python3 -m twine upload -u __token__
+        -p ${{ secrets.PYPI_TOKEN }} dist/*

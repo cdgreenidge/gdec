@@ -8,7 +8,15 @@ setup(
     author_email="dev@danielgreenidge.com",
     description="Linear decoders for angled grating stimuli",
     packages=["gdec"],
-    install_requires=["numpy", "scikit-learn", "scipy", "tqdm"],
+    install_requires=[
+        "jax",
+        "jaxlib",
+        "numpy",
+        "scikit-learn",
+        "scipy",
+        "tqdm",
+        "torch",
+    ],
     extras_require={
         "dev": [
             "black",
