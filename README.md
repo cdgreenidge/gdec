@@ -1,6 +1,6 @@
 # GDEC
 
-[![Test (local)](https://github.com/cdgreenidge/gdec/actions/workflows/test_local.yml/badge.svg)](https://github.com/cdgreenidge/gdec/actions/workflows/test_local.yml) [![Anaconda-Server Badge](https://anaconda.org/cdg4/gdec/badges/version.svg)](https://anaconda.org/cdg4/gdec) 
+[![Test (local)](https://github.com/cdgreenidge/gdec/actions/workflows/test_local.yml/badge.svg)](https://github.com/cdgreenidge/gdec/actions/workflows/test_local.yml) [![Anaconda-Server Badge](https://anaconda.org/cdg4/gdec/badges/version.svg)](https://anaconda.org/cdg4/gdec) [![PyPI version](https://badge.fury.io/py/gdec.svg)](https://badge.fury.io/py/gdec)
 
 GDEC (grating decoders) is a package that provides linear decoders for decoding circular stimuli, e.g. the angle of a drifting grating, from a vector of spike counts. It accompanies the paper
 
