@@ -210,10 +210,7 @@ def fit_hyperparams(
     theta_0_ = theta_0s[np.argmin(losses)]
 
     results = optimize.minimize(
-        neg_log_laplace_evidence,
-        theta_0_,
-        args=(x, y),
-        method="Nelder-Mead",
+        neg_log_laplace_evidence, theta_0_, args=(x, y), method="Nelder-Mead",
     )
     return results.x[0], results.x[1]
 

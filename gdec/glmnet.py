@@ -15,10 +15,7 @@ class LogisticRegression(pipeline.Pipeline):
         self.affine = affine
         super().__init__(
             [
-                (
-                    "scaler",
-                    preprocessing.MaxAbsScaler(),
-                ),
+                ("scaler", preprocessing.MaxAbsScaler(),),
                 (
                     "glmnet",
                     linear_model.LogisticRegressionCV(

@@ -6,14 +6,14 @@ all: format check test
 check:
 	@flake8 $(PYTHON_SOURCE_DIRS)
 	@mypy $(PYTHON_SOURCE_DIRS)
-	@isort --quiet --recursive --atomic --diff $(PYTHON_SOURCE_DIRS)
-	@black --diff --quiet $(PYTHON_SOURCE_DIRS)
+	@isort --quiet --recursive --diff $(PYTHON_SOURCE_DIRS)
+	@black --diff --check --quiet $(PYTHON_SOURCE_DIRS)
 
 docs:
 	@echo "Not implemented"
 
 format:
-	@isort --quiet --recursive --atomic $(PYTHON_SOURCE_DIRS)
+	@isort --quiet --recursive $(PYTHON_SOURCE_DIRS)
 	@black --quiet $(PYTHON_SOURCE_DIRS)
 
 help:

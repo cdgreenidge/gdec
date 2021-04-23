@@ -275,14 +275,7 @@ class VariationalGaussianProcessMulticlassDecoder(
             amplitudes,
             lengthscales,
         ) = fit_tuning_curve_matrix(
-            self.X_,
-            self.y_,
-            lr,
-            max_steps,
-            n_samples,
-            log_every,
-            cuda,
-            cuda_device,
+            self.X_, self.y_, lr, max_steps, n_samples, log_every, cuda, cuda_device,
         )
         self.amplitudes_ = amplitudes.numpy()
         self.lengthscales_ = lengthscales.numpy()
