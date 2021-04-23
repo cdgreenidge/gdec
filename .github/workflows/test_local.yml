@@ -24,9 +24,9 @@ jobs:
     - name: Lint with flake8
       run: |
         flake8 gdec tests
-    - name: Lint with mypy
-      run: |
-        mypy gdec tests
+        #     - name: Lint with mypy
+        #       run: |
+        #         mypy gdec tests
     - name: Check imports with isort
       run: |
         isort --quiet --recursive --atomic --diff gdec tests
