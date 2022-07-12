@@ -8,10 +8,7 @@ from gdec.gpgid import GPGaussianIndependentDecoder
 from gdec.gppid import GPPoissonIndependentDecoder
 from gdec.pid import PoissonIndependentDecoder
 from gdec.snd import SuperNeuronDecoder
-from gdec.vgpmd import VariationalGaussianProcessMulticlassDecoder
-from gdec.vgpmd import (
-    VariationalGaussianProcessMulticlassDecoder as GaussianProcessMulticlassDecoder,
-)
+from gdec.gpmd import GaussianProcessMulticlassDecoder
 
 config.update("jax_enable_x64", True)
 
@@ -24,6 +21,5 @@ __all__ = [
     "LogisticRegression",
     "PoissonIndependentDecoder",
     "SuperNeuronDecoder",
-    "VariationalGaussianProcessMulticlassDecoder",
     "GaussianProcessMulticlassDecoder",
 ]

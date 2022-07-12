@@ -1,4 +1,4 @@
-"""Variational Gaussian Process multiclass Decoder."""
+"""Gaussian Process Multiclass Decoder."""
 import logging
 import math
 from typing import Any, Tuple
@@ -42,8 +42,8 @@ def prune(spectrum: torch.Tensor) -> torch.Tensor:
     return spectrum
 
 
-class VGPMDModule(nn.Module):
-    """Variational Gaussian Process Linear Decoder."""
+class GPMDModule(nn.Module):
+    """Gaussian Process Multiclass Decoder."""
 
     def __init__(self, n_dim: int, n_classes: int, n_samples: int = 3) -> None:
         super().__init__()
@@ -159,7 +159,7 @@ class NegativeELBO(nn.Module):
         """Compute the negative ELBO.
 
         Args:
-            y_pred: The output of the VGPMD decoder.
+            y_pred: The output of the GPMD decoder.
             y_target: The true class labels, zero-based.
 
         Returns:
@@ -189,7 +189,7 @@ def fit_tuning_curve_matrix(
     n_classes = np.unique(y).size
     X = torch.tensor(X).to(device)
     y = torch.tensor(y).to(device)
-    model = VGPMDModule(n_dim=X.shape[1], n_classes=n_classes, n_samples=n_samples).to(
+    model = GPMDModule(n_dim=X.shape[1], n_classes=n_classes, n_samples=n_samples).to(
         device
     )
     loss_fn = NegativeELBO(n_data=X.shape[0]).to(device)
@@ -235,10 +235,10 @@ def fit_tuning_curve_matrix(
     return freq_coefs.cpu(), coefs.cpu(), amplitudes.cpu(), lengthscales.cpu()
 
 
-class VariationalGaussianProcessMulticlassDecoder(
+class GaussianProcessMulticlassDecoder(
     sklearn.base.BaseEstimator, sklearn.base.ClassifierMixin
 ):
-    """Sklearn interface to VGPMD classifier.
+    """Sklearn interface to GPMD classifier.
 
     Args:
         affine: whether or not to include a linear intercept term.
@@ -259,7 +259,7 @@ class VariationalGaussianProcessMulticlassDecoder(
         log_every: int = 32,
         cuda: bool = True,
         cuda_device: int = 0,
-    ) -> "VariationalGaussianProcessMulticlassDecoder":
+    ) -> "GaussianProcessMulticlassDecoder":
         """Fit the estimator."""
         X, y = sklearn.utils.validation.check_X_y(X, y)
         if self.affine:
@@ -299,12 +299,12 @@ class VariationalGaussianProcessMulticlassDecoder(
         classes = torch.argmax(log_probs, dim=-1)
         return classes.numpy()
 
-    def resample(self, n_classes: int) -> "VariationalGaussianProcessMulticlassDecoder":
+    def resample(self, n_classes: int) -> "GaussianProcessMulticlassDecoder":
         """Resample model to a different number of classes."""
         basis = torchgp.real_fourier_basis(n_classes)[0]
         new_coefs_t_ = basis @ self.freq_coefs_t_
 
-        model = VariationalGaussianProcessMulticlassDecoder()
+        model = GaussianProcessMulticlassDecoder()
         model.classes_ = np.arange(n_classes)
         model.X_ = self.X_
         model.y_ = self.y_
